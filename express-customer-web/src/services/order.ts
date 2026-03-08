@@ -13,7 +13,31 @@ export interface CreateOrderRequest {
     scheduled_at?: string;
 }
 
+export interface CalculatePriceRequest {
+    pickup_address: { address: string; lat: number; lng: number; };
+    delivery_address: { address: string; lat: number; lng: number; };
+    stops?: { address: string; lat: number; lng: number; }[];
+    parcels?: { description: string; weight: number; width: number; length: number; height: number; quantity: number; }[];
+    addons?: string[];
+    promo_code?: string;
+    distance?: number;
+    duration_mins?: number;
+}
+
 export const orderService = {
+    calculate: async (data: CalculatePriceRequest) => {
+        const response = await fetch(`${API_URL}/orders/calculate`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data),
+        });
+
+        if (!response.ok) {
+            const errorText = await response.text();
+            throw new Error(`Calculate Price Failed: ${errorText}`);
+        }
+        return response.json();
+    },
     create: async (data: CreateOrderRequest) => {
         const token = authService.getToken();
         if (!token) throw new Error('Not authenticated');

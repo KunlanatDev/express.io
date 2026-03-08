@@ -25,6 +25,7 @@ interface MapProps {
   pickup?: AddressInfo;
   deliveries?: AddressInfo[];
   vehicleType?: string;
+  onRouteCalculated?: (distanceKm: number, durationMins: number) => void;
 }
 
 const mapLibraries: "places"[] = ["places"];
@@ -33,6 +34,7 @@ export default function Map({
   pickup,
   deliveries = [],
   vehicleType = "motorcycle",
+  onRouteCalculated,
 }: MapProps) {
   const { isLoaded } = useJsApiLoader({
     id: "google-map-script",
@@ -107,6 +109,19 @@ export default function Map({
         if (status === "OK" && result) {
           setDirections(result);
           setMarkers([]);
+
+          const route = result.routes[0];
+          let totalD = 0;
+          let totalM = 0;
+          if (route && route.legs) {
+            route.legs.forEach((leg) => {
+              totalD += leg.distance?.value || 0;
+              totalM += leg.duration?.value || 0;
+            });
+            if (onRouteCalculated) {
+              onRouteCalculated(totalD / 1000, totalM / 60);
+            }
+          }
         } else {
           // Fallback to raw markers if route fails (e.g. no driving path found)
           const validCoords = allLocations.map((loc) => ({
@@ -116,6 +131,9 @@ export default function Map({
           setMarkers(validCoords);
           if (validCoords.length > 0) setCenter(validCoords[0]);
           setDirections(null);
+          if (onRouteCalculated) {
+            onRouteCalculated(0, 0);
+          }
         }
       },
     );

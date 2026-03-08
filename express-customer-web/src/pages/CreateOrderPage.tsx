@@ -63,6 +63,98 @@ const CreateOrderPage: React.FC<CreateOrderPageProps> = ({
   const [note, setNote] = useState("");
   const [loading, setLoading] = useState(false);
 
+  const [promoCode, setPromoCode] = useState("");
+  const [pricingData, setPricingData] = useState<any>(null);
+  const [mapDistance, setMapDistance] = useState<number>(0);
+  const [mapDurationMins, setMapDurationMins] = useState<number>(0);
+
+  // Auto calculate when inputs change
+  React.useEffect(() => {
+    // Only calculate if we have a valid pickup and at least one delivery with an address
+    if (
+      !pickup.lat ||
+      !deliveries[0].lat ||
+      !pickup.address ||
+      !deliveries[0].address
+    )
+      return;
+
+    // Also debounce it to prevent too many calls (simple version: just call it, maybe wrap in setTimeout)
+    const timeout = setTimeout(async () => {
+      try {
+        let weight = 1.0,
+          w = 20,
+          l = 20,
+          h = 10;
+        switch (parcelSize) {
+          case "S":
+            weight = 1.0;
+            w = 20;
+            l = 20;
+            h = 10;
+            break;
+          case "M":
+            weight = 5.0;
+            w = 30;
+            l = 30;
+            h = 15;
+            break;
+          case "L":
+            weight = 15.0;
+            w = 50;
+            l = 50;
+            h = 40;
+            break;
+          case "XL":
+            weight = 30.0;
+            w = 80;
+            l = 80;
+            h = 60;
+            break;
+        }
+
+        const addons: string[] = [];
+        if (services.wait) addons.push("wait");
+        if (services.lift) addons.push("lift");
+        if (services.insurance) addons.push("insurance");
+
+        const data = await orderService.calculate({
+          pickup_address: pickup,
+          delivery_address: deliveries[0],
+          stops: deliveries.length > 1 ? deliveries.slice(1) : undefined,
+          parcels: [
+            {
+              description: `${parcelType} - ${parcelSize}`,
+              weight,
+              width: w,
+              length: l,
+              height: h,
+              quantity: 1,
+            },
+          ],
+          addons,
+          promo_code: promoCode,
+          distance: mapDistance > 0 ? mapDistance : undefined,
+          duration_mins: mapDurationMins > 0 ? mapDurationMins : undefined,
+        });
+        setPricingData(data);
+      } catch (err) {
+        console.error("Calculate error:", err);
+      }
+    }, 500);
+
+    return () => clearTimeout(timeout);
+  }, [
+    pickup,
+    deliveries,
+    parcelSize,
+    parcelType,
+    services,
+    promoCode,
+    mapDistance,
+    mapDurationMins,
+  ]);
+
   const handleCreateOrder = async () => {
     if (!token) {
       onRequireAuth();
@@ -262,6 +354,8 @@ const CreateOrderPage: React.FC<CreateOrderPageProps> = ({
           setNote={setNote}
           loading={loading}
           onSubmit={handleCreateOrder}
+          pricingData={pricingData}
+          mapDistance={mapDistance}
         />
       </Grid>
 
@@ -276,6 +370,20 @@ const CreateOrderPage: React.FC<CreateOrderPageProps> = ({
           pickup={pickup}
           deliveries={deliveries}
           vehicleType={vehicleType}
+          pricingData={pricingData}
+          selectedServiceTab={deliveryTab}
+          promoCode={promoCode}
+          setPromoCode={setPromoCode}
+          mapDistance={mapDistance}
+          mapDurationMins={mapDurationMins}
+          onRouteCalculated={(dist, dur) => {
+            setMapDistance(dist);
+            setMapDurationMins(dur);
+          }}
+          onApplyPromo={() => {
+            // Force recalculation by setting promoCode again (triggers useEffect)
+            setPromoCode((prev) => prev);
+          }}
         />
       </Grid>
     </Grid>

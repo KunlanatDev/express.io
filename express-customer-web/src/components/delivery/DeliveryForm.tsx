@@ -55,6 +55,8 @@ interface DeliveryFormProps {
   setNote: (val: string) => void;
   loading: boolean;
   onSubmit: () => void;
+  pricingData?: any;
+  mapDistance?: number;
 }
 
 const POINT_SIZE = 16; // ขนาดวงกลม (ring)
@@ -75,6 +77,8 @@ const DeliveryForm: React.FC<DeliveryFormProps> = ({
   setParcelSize,
   services,
   setServices,
+  pricingData,
+  mapDistance,
 }) => {
   const theme = useTheme();
 
@@ -131,32 +135,64 @@ const DeliveryForm: React.FC<DeliveryFormProps> = ({
   const [senderPhone, setSenderPhone] = useState("");
   const [parcelValue, setParcelValue] = useState("");
 
-  // Service Types Data
+  const promoDiscount = pricingData?.promo_discount || 0;
+
+  // Service Types Data (use dynamic if possible)
   const serviceTypes = [
     {
       id: "express",
       label: "Express",
-      price: 45,
+      price:
+        pricingData?.services?.find((s: any) => s.service_type === "express")
+          ?.total_price || 45,
+      originalPrice:
+        promoDiscount > 0
+          ? (pricingData?.services?.find(
+              (s: any) => s.service_type === "express",
+            )?.total_price || 45) + promoDiscount
+          : null,
       desc: "ด่วนที่สุด ทันใจคุณ",
-      time: "1-2 ชม.",
+      time:
+        pricingData?.services?.find((s: any) => s.service_type === "express")
+          ?.eta || "1-2 ชม.",
       icon: FlashOn,
       tabIndex: 0,
     },
     {
       id: "sameday",
       label: "Same-day",
-      price: 25,
+      price:
+        pricingData?.services?.find((s: any) => s.service_type === "sameday")
+          ?.total_price || 25,
+      originalPrice:
+        promoDiscount > 0
+          ? (pricingData?.services?.find(
+              (s: any) => s.service_type === "sameday",
+            )?.total_price || 25) + promoDiscount
+          : null,
       desc: "ส่งเช้า ถึงเย็น ราคาประหยัด",
-      time: "ภายในวัน",
+      time:
+        pricingData?.services?.find((s: any) => s.service_type === "sameday")
+          ?.eta || "ภายในวัน",
       icon: LocalShipping,
       tabIndex: 1,
     },
     {
       id: "intercity",
       label: "Inter-city",
-      price: 85,
+      price:
+        pricingData?.services?.find((s: any) => s.service_type === "intercity")
+          ?.total_price || 85,
+      originalPrice:
+        promoDiscount > 0
+          ? (pricingData?.services?.find(
+              (s: any) => s.service_type === "intercity",
+            )?.total_price || 85) + promoDiscount
+          : null,
       desc: "ส่งข้ามจังหวัด มีระบบติดตาม",
-      time: "1-2 วัน",
+      time:
+        pricingData?.services?.find((s: any) => s.service_type === "intercity")
+          ?.eta || "1-2 วัน",
       icon: Language,
       tabIndex: 2,
     },
@@ -220,7 +256,11 @@ const DeliveryForm: React.FC<DeliveryFormProps> = ({
           </Stack>
 
           <Typography variant="body2" sx={{ color: "#64748B" }}>
-            ระยะทางประมาณ 4.2 กม.
+            ระยะทางประมาณ{" "}
+            {mapDistance && mapDistance > 0
+              ? mapDistance.toFixed(1)
+              : pricingData?.distance || "4.2"}{" "}
+            กม.
           </Typography>
         </Stack>
 
@@ -849,13 +889,28 @@ const DeliveryForm: React.FC<DeliveryFormProps> = ({
                     }}
                   >
                     {token ? (
-                      <Typography
-                        variant="h5"
-                        fontWeight={800}
-                        color="text.primary"
-                      >
-                        ฿{service.price}
-                      </Typography>
+                      <Stack direction="row" alignItems="baseline" spacing={1}>
+                        <Typography
+                          variant="h5"
+                          fontWeight={800}
+                          color="text.primary"
+                        >
+                          ฿{service.price}
+                        </Typography>
+                        {service.originalPrice && (
+                          <Typography
+                            variant="body2"
+                            sx={{
+                              textDecoration: "line-through",
+                              color: "#94a3b8",
+                              fontWeight: 500,
+                              fontSize: "0.85rem",
+                            }}
+                          >
+                            ฿{service.originalPrice}
+                          </Typography>
+                        )}
+                      </Stack>
                     ) : (
                       <>
                         <Typography

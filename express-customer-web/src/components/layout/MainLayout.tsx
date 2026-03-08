@@ -29,7 +29,6 @@ import {
   History,
   Apple,
   Android,
-  PersonAdd,
 } from "@mui/icons-material";
 import { alpha } from "@mui/material/styles";
 
@@ -40,7 +39,6 @@ interface MainLayoutProps {
   token: string | null;
   onLogout: () => void;
   onLoginClick: () => void;
-  onRegisterClick: () => void;
 }
 
 const MainLayout: React.FC<MainLayoutProps> = ({
@@ -50,7 +48,6 @@ const MainLayout: React.FC<MainLayoutProps> = ({
   token,
   onLogout,
   onLoginClick,
-  onRegisterClick,
 }) => {
   const theme = useTheme();
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);

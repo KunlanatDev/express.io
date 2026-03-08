@@ -14,10 +14,10 @@ func SetupRoutes(router fiber.Router, cfg *config.Config, db *gorm.DB, redisClie
 	// Initialize Dependencies
 	orderRepo := repo.NewOrderRepository(db)
 
-	pricingService := service.NewPricingService()
+	pricingService := service.NewPricingService(db)
 	orderService := service.NewOrderService(orderRepo, pricingService, redisClient)
 
-	orderController := NewOrderController(orderService)
+	orderController := NewOrderController(orderService, pricingService)
 
 	// Health Check
 	router.Get("/", func(c *fiber.Ctx) error {
@@ -29,6 +29,7 @@ func SetupRoutes(router fiber.Router, cfg *config.Config, db *gorm.DB, redisClie
 
 	// Order Routes
 	orders := router.Group("/orders")
+	orders.Post("/calculate", orderController.CalculatePrice)
 	orders.Post("/", orderController.CreateOrder)
 	orders.Get("/:id", orderController.GetOrder)
 	orders.Post("/:id/accept", orderController.AcceptOrder)
@@ -39,6 +40,14 @@ func SetupRoutes(router fiber.Router, cfg *config.Config, db *gorm.DB, redisClie
 	orders.Post("/:id/deliver", orderController.DeliverOrder)
 	orders.Post("/:id/confirm-payment", orderController.ConfirmPayment)
 	orders.Post("/:id/rate", orderController.RateOrder)
+
+	// Promo Routes
+	promoController := NewPromoController(db)
+	promos := router.Group("/promos")
+	promos.Get("/", promoController.GetPromos)
+	promos.Post("/", promoController.CreatePromo)
+	promos.Get("/check/:code", promoController.CheckPromo)
+	promos.Put("/:id", promoController.UpdatePromo)
 
 	// Upload Routes
 	uploadController := NewUploadController()

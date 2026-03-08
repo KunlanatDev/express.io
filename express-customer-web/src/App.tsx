@@ -742,7 +742,6 @@ function App() {
   const appTheme = useMemo(() => theme(mode), [mode]);
   const [token, setToken] = useState<string | null>(authService.getToken());
   const [showAuth, setShowAuth] = useState(false);
-  const [showRegister, setShowRegister] = useState(false);
 
   // Global Order State (for tracking across pages if needed)
   const [currentOrder, setCurrentOrder] = useState<OrderResponse | null>(null);
@@ -799,7 +798,6 @@ function App() {
           token={token}
           onLogout={handleLogout}
           onLoginClick={() => setShowAuth(true)}
-          onRegisterClick={() => setShowRegister(true)}
         >
           <Routes>
             <Route

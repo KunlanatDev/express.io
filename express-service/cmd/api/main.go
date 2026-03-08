@@ -43,14 +43,19 @@ func main() {
 		log.Fatal("Failed to connect to database: " + err.Error())
 	}
 
-	// Auto Migration with improved handling
-	// Disable foreign key constraints during migration to avoid errors
+	// Auto Migration - migrate each entity separately to avoid one failure blocking others
 	db.Exec("SET session_replication_role = 'replica';")
 
-	if err := db.AutoMigrate(&entity.DeliveryOrder{}); err != nil {
-		log.Printf("Warning: AutoMigrate failed: %v", err)
-	} else {
-		log.Println("✅ Database schema migrated successfully")
+	entities := []interface{}{
+		&entity.DeliveryOrder{},
+		&entity.Promo{},
+	}
+	for _, e := range entities {
+		if err := db.AutoMigrate(e); err != nil {
+			log.Printf("Warning: AutoMigrate failed for %T: %v", e, err)
+		} else {
+			log.Printf("✅ Migrated: %T", e)
+		}
 	}
 
 	// Re-enable foreign key constraints

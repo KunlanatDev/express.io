@@ -48,6 +48,7 @@ export interface OrderResponse {
     distance_price: number;
     add_ons_price: number;
     total_price: number;
+    promo_discount?: number;
     estimated_duration: number;
     rider_lat?: number;
     rider_lng?: number;
@@ -61,4 +62,21 @@ export interface User {
     first_name: string;
     last_name: string;
     role: 'customer' | 'rider' | 'merchant' | 'admin';
+}
+
+export interface ServicePrice {
+    service_type: string;
+    total_price: number;
+    eta: string;
+}
+
+export interface CalculatePriceResponse {
+    distance: number;
+    distance_price: number;
+    base_price: number;
+    weight_price: number;
+    promo_discount: number;
+    total_price: number;
+    eta: string;
+    services: ServicePrice[];
 }

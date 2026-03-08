@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import Map from "../google/Map";
 import {
   Box,
@@ -10,7 +10,13 @@ import {
   TextField,
   InputAdornment,
 } from "@mui/material";
-import { InfoOutlined, ArrowForward, Lock } from "@mui/icons-material";
+import {
+  InfoOutlined,
+  ArrowForward,
+  Lock,
+  CheckCircle,
+  Cancel,
+} from "@mui/icons-material";
 import type { OrderResponse, AddressInfo } from "../../types";
 
 interface OrderSummaryProps {
@@ -22,6 +28,14 @@ interface OrderSummaryProps {
   pickup: AddressInfo;
   deliveries: AddressInfo[];
   vehicleType: string;
+  pricingData?: any;
+  selectedServiceTab?: number;
+  promoCode?: string;
+  setPromoCode?: (code: string) => void;
+  onRouteCalculated?: (distanceKm: number, durationMins: number) => void;
+  onApplyPromo?: () => void;
+  mapDistance?: number;
+  mapDurationMins?: number;
 }
 
 const OrderSummary: React.FC<OrderSummaryProps> = ({
@@ -31,10 +45,64 @@ const OrderSummary: React.FC<OrderSummaryProps> = ({
   pickup,
   deliveries,
   vehicleType,
+  pricingData,
+  selectedServiceTab,
+  promoCode,
+  setPromoCode,
+  onRouteCalculated,
+  onApplyPromo,
+  mapDistance,
+  mapDurationMins,
 }) => {
+  // Map tab index -> service key
+  const serviceKeys = ["express", "sameday", "intercity"];
+  const activeServiceKey = serviceKeys[selectedServiceTab ?? 0];
+  // Find the matching service from pricing data
+  const activeService =
+    pricingData?.services?.find(
+      (s: any) => s.service_type === activeServiceKey,
+    ) ??
+    pricingData?.services?.[selectedServiceTab ?? 0] ??
+    null;
+  const [promoApplied, setPromoApplied] = useState(false);
+  const [promoError, setPromoError] = useState("");
+
+  const handleApplyPromo = async () => {
+    if (!promoCode) return;
+    setPromoApplied(false);
+    setPromoError("");
+    try {
+      const API =
+        import.meta.env.VITE_EXPRESS_SERVICE_URL ||
+        "http://localhost:8082/api/v1";
+      const res = await fetch(
+        `${API}/promos/check/${encodeURIComponent(promoCode)}`,
+      );
+      if (res.ok) {
+        setPromoApplied(true);
+        setPromoError("");
+        if (onApplyPromo) onApplyPromo();
+      } else {
+        setPromoApplied(false);
+        setPromoError("โค้ดไม่ถูกต้องหรือหมดอายุการใช้งานแล้ว");
+      }
+    } catch {
+      setPromoError("สอบสถานะไม่ได้ ลองใหม่อีกครั้ง");
+    }
+  };
   // Helper to format currency
   const formatPrice = (price: number) => {
     return `฿${price}`;
+  };
+
+  // Format ETA from minutes (from Google Maps)
+  const formatETA = (mins: number): string => {
+    if (mins <= 0) return "";
+    const h = Math.floor(mins / 60);
+    const m = Math.round(mins % 60);
+    if (h === 0) return `${m} นาที`;
+    if (m === 0) return `${h} ชั่วโมง`;
+    return `${h} ชั่วโมง ${m} นาที`;
   };
 
   return (
@@ -59,6 +127,7 @@ const OrderSummary: React.FC<OrderSummaryProps> = ({
           pickup={pickup}
           deliveries={deliveries}
           vehicleType={vehicleType}
+          onRouteCalculated={onRouteCalculated}
         />
         {/* Visual Curve */}
         {/* <Box sx={{ position: "absolute", inset: 0, opacity: 0.8 }}>
@@ -184,18 +253,41 @@ const OrderSummary: React.FC<OrderSummaryProps> = ({
                       letterSpacing: -1,
                     }}
                   >
-                    {formatPrice(orderResult?.total_price || 45)}
+                    {formatPrice(
+                      orderResult
+                        ? orderResult.total_price
+                        : activeService
+                          ? activeService.total_price
+                          : pricingData
+                            ? pricingData.total_price
+                            : 45,
+                    )}
                   </Typography>
-                  <Typography
-                    variant="h6"
-                    sx={{
-                      textDecoration: "line-through",
-                      color: "#94a3b8",
-                      fontWeight: 500,
-                    }}
-                  >
-                    ฿60
-                  </Typography>
+                  {/* Show original price (before discount) only when a promo is applied */}
+                  {((pricingData?.promo_discount ?? 0) > 0 ||
+                    (orderResult?.promo_discount ?? 0) > 0) && (
+                    <Typography
+                      variant="h6"
+                      sx={{
+                        textDecoration: "line-through",
+                        color: "#94a3b8",
+                        fontWeight: 500,
+                      }}
+                    >
+                      {formatPrice(
+                        orderResult
+                          ? orderResult.total_price +
+                              (orderResult.promo_discount || 0)
+                          : activeService
+                            ? activeService.total_price +
+                              (pricingData.promo_discount || 0)
+                            : pricingData
+                              ? pricingData.total_price +
+                                (pricingData.promo_discount || 0)
+                              : 0,
+                      )}
+                    </Typography>
+                  )}
                 </>
               ) : (
                 <Box sx={{ position: "relative", display: "inline-block" }}>
@@ -236,7 +328,14 @@ const OrderSummary: React.FC<OrderSummaryProps> = ({
               ถึงผู้รับประมาณ
             </Typography>
             <Typography variant="h6" sx={{ fontWeight: 800, color: "#0F172A" }}>
-              14:20 – 14:50
+              {/* Only use live Google Maps duration for Express — other services have fixed ETA semantics */}
+              {mapDurationMins &&
+              mapDurationMins > 0 &&
+              activeServiceKey === "express"
+                ? formatETA(mapDurationMins)
+                : activeService?.eta ||
+                  pricingData?.eta ||
+                  "14:20 \u2013 14:50"}
             </Typography>
           </Box>
         </Stack>
@@ -247,11 +346,21 @@ const OrderSummary: React.FC<OrderSummaryProps> = ({
         <Stack spacing={2} sx={{ mb: 3 }}>
           <Stack direction="row" justifyContent="space-between">
             <Typography variant="body1" color="text.secondary" fontWeight={500}>
-              ค่าจัดส่ง (4.2 กม.)
+              ค่าจัดส่ง (
+              {mapDistance && mapDistance > 0
+                ? mapDistance.toFixed(1)
+                : pricingData?.distance || 4.2}{" "}
+              กม.)
             </Typography>
             {token ? (
               <Typography variant="body1" fontWeight={700} color="#0F172A">
-                {formatPrice(orderResult?.distance_price || 35)}
+                {formatPrice(
+                  orderResult
+                    ? orderResult.distance_price
+                    : pricingData
+                      ? pricingData.distance_price
+                      : 35,
+                )}
               </Typography>
             ) : (
               <Box
@@ -287,7 +396,13 @@ const OrderSummary: React.FC<OrderSummaryProps> = ({
             </Typography>
             {token ? (
               <Typography variant="body1" fontWeight={700} color="#0F172A">
-                {formatPrice(orderResult?.base_price || 10)}
+                {formatPrice(
+                  orderResult
+                    ? orderResult.base_price
+                    : pricingData
+                      ? pricingData.base_price
+                      : 10,
+                )}
               </Typography>
             ) : (
               <Box
@@ -323,15 +438,18 @@ const OrderSummary: React.FC<OrderSummaryProps> = ({
               fontWeight={700}
               sx={{ color: "#0F172A" }}
             >
-              ส่วนลดสมาชิก (PROMO10)
+              ส่วนลด (โค้ด: {promoCode || "-"})
             </Typography>
             {token ? (
               <Typography
                 variant="body1"
                 fontWeight={700}
-                sx={{ color: "#0F172A" }}
+                sx={{
+                  color: "#0F172A",
+                  ...(pricingData?.promo_discount ? { color: "#16a34a" } : {}),
+                }}
               >
-                -฿10
+                -{formatPrice(pricingData?.promo_discount || 0)}
               </Typography>
             ) : (
               <Box
@@ -370,12 +488,15 @@ const OrderSummary: React.FC<OrderSummaryProps> = ({
             placeholder="กรอกคูปองส่วนลด"
             variant="outlined"
             size="small"
+            value={promoCode || ""}
+            onChange={(e) => setPromoCode && setPromoCode(e.target.value)}
             InputProps={{
               endAdornment: (
                 <InputAdornment position="end">
                   <Button
                     variant="contained"
                     size="small"
+                    onClick={handleApplyPromo}
                     sx={{
                       bgcolor: "#1e293b",
                       color: "#fff",
@@ -400,6 +521,40 @@ const OrderSummary: React.FC<OrderSummaryProps> = ({
               },
             }}
           />
+          {/* Promo feedback */}
+          {promoApplied && (
+            <Stack
+              direction="row"
+              alignItems="center"
+              spacing={0.5}
+              sx={{ mt: 1 }}
+            >
+              <CheckCircle sx={{ color: "#16a34a", fontSize: 16 }} />
+              <Typography
+                variant="caption"
+                sx={{ color: "#16a34a", fontWeight: 600 }}
+              >
+                ใช้โค้ด {promoCode} สำเร็จ! ส่วนลด{" "}
+                {formatPrice(pricingData?.promo_discount || 0)}
+              </Typography>
+            </Stack>
+          )}
+          {promoError && (
+            <Stack
+              direction="row"
+              alignItems="center"
+              spacing={0.5}
+              sx={{ mt: 1 }}
+            >
+              <Cancel sx={{ color: "#dc2626", fontSize: 16 }} />
+              <Typography
+                variant="caption"
+                sx={{ color: "#dc2626", fontWeight: 600 }}
+              >
+                {promoError}
+              </Typography>
+            </Stack>
+          )}
         </Box>
 
         {/* Main Action Button */}

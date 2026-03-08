@@ -92,7 +92,9 @@ const LocationSearchInput: React.FC<LocationSearchInputProps> = ({
         value={text}
         onChange={(e) => {
           setText(e.target.value);
-          onChange({ ...value, address: e.target.value });
+          // By default we DO NOT update the parent `value` on every keystroke
+          // otherwise it triggers re-rendering of the map mid-typing and resets the autocomplete.
+          // Wait for the user to select the place from the dropdown (onPlaceChanged).
         }}
         placeholder={placeholder}
         InputProps={{

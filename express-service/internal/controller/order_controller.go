@@ -10,13 +10,39 @@ import (
 )
 
 type OrderController struct {
-	orderService service.OrderService
+	orderService   service.OrderService
+	pricingService service.PricingService
 }
 
-func NewOrderController(orderService service.OrderService) *OrderController {
+func NewOrderController(orderService service.OrderService, pricingService service.PricingService) *OrderController {
 	return &OrderController{
-		orderService: orderService,
+		orderService:   orderService,
+		pricingService: pricingService,
 	}
+}
+
+func (c *OrderController) CalculatePrice(ctx *fiber.Ctx) error {
+	var req model.CalculatePriceRequest
+	if err := ctx.BodyParser(&req); err != nil {
+		return ctx.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Invalid request body",
+		})
+	}
+
+	if req.PickupAddress.Address == "" || req.DeliveryAddress.Address == "" {
+		return ctx.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Missing pickup or delivery address",
+		})
+	}
+
+	res, err := c.pricingService.CalculateAllPrices(&req)
+	if err != nil {
+		return ctx.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Failed to calculate price: " + err.Error(),
+		})
+	}
+
+	return ctx.Status(fiber.StatusOK).JSON(res)
 }
 
 func (c *OrderController) CreateOrder(ctx *fiber.Ctx) error {

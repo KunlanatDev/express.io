@@ -70,3 +70,31 @@ type AddressOutput struct {
 	Floor   string  `json:"floor,omitempty"`
 	Note    string  `json:"note,omitempty"`
 }
+
+type CalculatePriceRequest struct {
+	PickupAddress   AddressInput   `json:"pickup_address" validate:"required"`
+	DeliveryAddress AddressInput   `json:"delivery_address" validate:"required"`
+	Stops           []AddressInput `json:"stops,omitempty"`
+	Parcels         []ParcelInput  `json:"parcels,omitempty"`
+	Addons          []string       `json:"addons,omitempty"`
+	PromoCode       string         `json:"promo_code,omitempty"`
+	Distance        *float64       `json:"distance,omitempty"`
+	DurationMins    *float64       `json:"duration_mins,omitempty"`
+}
+
+type CalculatePriceResponse struct {
+	Distance      float64        `json:"distance"`       // Total distance in km
+	DistancePrice float64        `json:"distance_price"` // Price based on distance
+	BasePrice     float64        `json:"base_price"`
+	WeightPrice   float64        `json:"weight_price"`
+	PromoDiscount float64        `json:"promo_discount"`
+	TotalPrice    float64        `json:"total_price"` // Final calculated price for default service
+	ETA           string         `json:"eta"`         // E.g., "14:20 - 14:50"
+	Services      []ServicePrice `json:"services"`
+}
+
+type ServicePrice struct {
+	ServiceType string  `json:"service_type"`
+	TotalPrice  float64 `json:"total_price"`
+	ETA         string  `json:"eta"`
+}
