@@ -1,142 +1,285 @@
-import React, { useState } from 'react';
-import { Grid, Paper, Typography } from '@mui/material';
-import DeliveryForm from '../components/delivery/DeliveryForm';
-import OrderSummary from '../components/delivery/OrderSummary';
-import { orderService } from '../services/order';
-import type { OrderResponse } from '../types';
+import React, { useState } from "react";
+import { Grid, Typography, Alert, Button, Box } from "@mui/material";
+import { Lock, Login } from "@mui/icons-material";
+import DeliveryForm from "../components/delivery/DeliveryForm";
+import OrderSummary from "../components/delivery/OrderSummary";
+import { orderService } from "../services/order";
+import type { OrderResponse, AddressInfo } from "../types";
 
 interface CreateOrderPageProps {
-    token: string | null;
-    onRequireAuth: () => void;
-    orderResult: OrderResponse | null;
-    setOrderResult: (res: any) => void;
-    successMsg: string | null;
-    setSuccessMsg: (msg: string | null) => void;
-    error: string | null;
-    setError: (msg: string | null) => void;
+  token: string | null;
+  onRequireAuth: () => void;
+  orderResult: OrderResponse | null;
+  setOrderResult: (res: OrderResponse | null) => void;
+  successMsg: string | null;
+  setSuccessMsg: (msg: string | null) => void;
+  error: string | null;
+  setError: (msg: string | null) => void;
 }
 
 const CreateOrderPage: React.FC<CreateOrderPageProps> = ({
-    token, onRequireAuth, orderResult, setOrderResult,
-    setSuccessMsg, setError
+  token,
+  onRequireAuth,
+  orderResult,
+  setOrderResult,
+  setSuccessMsg,
+  setError,
 }) => {
-    // Order Form State
-    const [deliveryTab, setDeliveryTab] = useState(0);
-    const [pickup, setPickup] = useState('Siam Paragon, Bangkok');
-    const [delivery, setDelivery] = useState('Central World, Bangkok');
-    const [parcelType, setParcelType] = useState('box');
-    const [parcelSize, setParcelSize] = useState('M');
-    const [services, setServices] = useState({ wait: false, lift: false, insurance: false });
-    const [note, setNote] = useState('');
-    const [loading, setLoading] = useState(false);
+  // Order Form State
+  const [deliveryTab, setDeliveryTab] = useState(0);
+  const [vehicleType, setVehicleType] = useState("motorcycle");
+  const [pickup, setPickup] = useState<AddressInfo>({
+    address: "",
+    lat: 13.7563,
+    lng: 100.5018,
+  });
+  const [deliveries, setDeliveries] = useState<AddressInfo[]>([
+    { address: "", lat: 13.7563, lng: 100.5018 },
+  ]);
 
-    const handleCreateOrder = async () => {
-        if (!token) {
-            onRequireAuth();
-            return;
-        }
-        setLoading(true);
-        try {
-            // Map inputs to API request
-            let weight = 1.0, w = 20, l = 20, h = 10;
-            switch (parcelSize) {
-                case 'S': weight = 1.0; w = 20; l = 20; h = 10; break;
-                case 'M': weight = 5.0; w = 30; l = 30; h = 15; break;
-                case 'L': weight = 15.0; w = 50; l = 50; h = 40; break;
-                case 'XL': weight = 30.0; w = 80; l = 80; h = 60; break;
+  React.useEffect(() => {
+    if ("geolocation" in navigator) {
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          setPickup({
+            address: "ตำแหน่งปัจจุบัน",
+            lat: position.coords.latitude,
+            lng: position.coords.longitude,
+          });
+        },
+        (error) => {
+          console.error("Error getting location", error);
+        },
+      );
+    }
+  }, []);
+  const [parcelType, setParcelType] = useState("box");
+  const [parcelSize, setParcelSize] = useState("M");
+  const [services, setServices] = useState({
+    wait: false,
+    lift: false,
+    insurance: false,
+  });
+  const [note, setNote] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  const handleCreateOrder = async () => {
+    if (!token) {
+      onRequireAuth();
+      return;
+    }
+    setLoading(true);
+    try {
+      // Map inputs to API request
+      let weight = 1.0,
+        w = 20,
+        l = 20,
+        h = 10;
+      switch (parcelSize) {
+        case "S":
+          weight = 1.0;
+          w = 20;
+          l = 20;
+          h = 10;
+          break;
+        case "M":
+          weight = 5.0;
+          w = 30;
+          l = 30;
+          h = 15;
+          break;
+        case "L":
+          weight = 15.0;
+          w = 50;
+          l = 50;
+          h = 40;
+          break;
+        case "XL":
+          weight = 30.0;
+          w = 80;
+          l = 80;
+          h = 60;
+          break;
+      }
+
+      const addons: string[] = [];
+      if (services.wait) addons.push("wait");
+      if (services.lift) addons.push("lift");
+      if (services.insurance) addons.push("insurance");
+
+      const orderData = {
+        pickup_address: {
+          address: pickup.address,
+          lat: pickup.lat || 13.7462,
+          lng: pickup.lng || 100.5348,
+          note: "",
+        },
+        delivery_address: {
+          address: deliveries[0]?.address || "",
+          lat: deliveries[0]?.lat || 13.75,
+          lng: deliveries[0]?.lng || 100.5,
+          note: note,
+        },
+        stops: deliveries.length > 1 ? deliveries.slice(1) : undefined,
+        pickup_contact: { name: `Me`, phone: "0812345678" },
+        delivery_contact: { name: "Receiver", phone: "0898765432" },
+        service_type: deliveryTab === 0 ? "express" : "next_day",
+        parcels: [
+          {
+            description: `${parcelType} - ${parcelSize}`,
+            weight,
+            width: w,
+            length: l,
+            height: h,
+            quantity: 1,
+          },
+        ],
+        addons,
+        scheduled_at:
+          deliveryTab === 1
+            ? new Date(Date.now() + 86400000).toISOString()
+            : undefined,
+      };
+
+      const res = await orderService.create(orderData);
+      setOrderResult(res);
+      setSuccessMsg("Order successfully created! Finding nearby riders...");
+    } catch (err: unknown) {
+      const errorObj = err as Error;
+      setError(errorObj?.message || "Failed to create order");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleCancelOrder = async () => {
+    if (!orderResult) return;
+    if (!window.confirm("Are you sure you want to cancel this order?")) return;
+    setLoading(true);
+    try {
+      await orderService.cancel(orderResult.id, "User cancelled");
+      setOrderResult(
+        orderResult ? { ...orderResult, status: "cancelled" } : null,
+      );
+      setSuccessMsg("Order cancelled.");
+    } catch (e: unknown) {
+      const errorObj = e as Error;
+      setError(errorObj.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <Grid container spacing={4} sx={{ height: "100%", alignItems: "stretch" }}>
+      {/* LEFT PANEL (Builder) - 60% approx */}
+      <Grid size={{ xs: 12, md: 7 }}>
+        {!token && (
+          <Alert
+            severity="warning"
+            icon={
+              <Box
+                sx={{
+                  width: 32,
+                  height: 32,
+                  borderRadius: "8px",
+                  backgroundColor: "#D08700",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                <Lock sx={{ color: "#fff", fontSize: 18 }} />
+              </Box>
             }
+            sx={{
+              mb: 3,
+              borderRadius: "16px",
+              border: "2px solid #D08700",
+              bgcolor: "#E0D3CC",
+              color: "#854D0E",
 
-            const addons: string[] = [];
-            if (services.wait) addons.push('wait');
-            if (services.lift) addons.push('lift');
-            if (services.insurance) addons.push('insurance');
+              // 👇 ตรงนี้สำคัญ
+              "& .MuiAlert-icon": {
+                alignItems: "flex-start",
+                mt: "4px", // ปรับเพิ่ม/ลดได้ตามต้องการ
+              },
+            }}
+          >
+            <Typography variant="subtitle1" fontWeight={800} gutterBottom>
+              กรอกข้อมูลได้เลย แต่ต้อง Login ก่อนยืนยันคำสั่ง
+            </Typography>
+            <Typography variant="body2">
+              เพื่อความปลอดภัยของราคา
+              เราจำเป็นต้องขอให้คุณเข้าสู่ระบบก่อนดูราคาและยืนยันการสั่งส่งพัสดุ
+            </Typography>
+            <Button
+              variant="contained"
+              onClick={onRequireAuth}
+              sx={{
+                mt: "8px",
+                px: 3,
+                background: "#D08700",
+                color: "black",
+                borderRadius: "8px",
+              }}
+            >
+              <Login sx={{ pr: 1, color: "#FFFFFF" }} />
+              <Typography variant="body2" sx={{ color: "#FFFFFF" }}>
+                เข้าสู่ระบบเพื่อดูราคา
+              </Typography>
+            </Button>
+          </Alert>
+        )}
 
-            const orderData = {
-                pickup_address: {
-                    address: pickup,
-                    lat: 13.7462,
-                    lng: 100.5348,
-                    note: ''
-                },
-                delivery_address: {
-                    address: delivery,
-                    lat: 13.7500,
-                    lng: 100.5000,
-                    note: note
-                },
-                pickup_contact: { name: `Me`, phone: '0812345678' },
-                delivery_contact: { name: 'Receiver', phone: '0898765432' },
-                service_type: deliveryTab === 0 ? 'express' : 'next_day',
-                parcels: [{
-                    description: `${parcelType} - ${parcelSize}`,
-                    weight, width: w, length: l, height: h,
-                    quantity: 1
-                }],
-                addons,
-                scheduled_at: deliveryTab === 1 ? new Date(Date.now() + 86400000).toISOString() : undefined
-            };
+        <Typography
+          variant="h5"
+          fontWeight={800}
+          gutterBottom
+          sx={{ mb: 3, pl: 1 }}
+        >
+          {/* CREATE DELIVERY */}
+          สร้างคำสั่งส่งของ
+        </Typography>
 
-            const res = await orderService.create(orderData);
-            setOrderResult(res);
-            setSuccessMsg('Order successfully created! Finding nearby riders...');
-        } catch (err: any) {
-            setError(err?.message || 'Failed to create order');
-        } finally {
-            setLoading(false);
-        }
-    };
+        <DeliveryForm
+          token={token}
+          pickup={pickup}
+          setPickup={setPickup}
+          deliveries={deliveries}
+          setDeliveries={setDeliveries}
+          deliveryTab={deliveryTab}
+          setDeliveryTab={setDeliveryTab}
+          vehicleType={vehicleType}
+          setVehicleType={setVehicleType}
+          parcelType={parcelType}
+          setParcelType={setParcelType}
+          parcelSize={parcelSize}
+          setParcelSize={setParcelSize}
+          services={services}
+          setServices={setServices}
+          note={note}
+          setNote={setNote}
+          loading={loading}
+          onSubmit={handleCreateOrder}
+        />
+      </Grid>
 
-    const handleCancelOrder = async () => {
-        if (!orderResult) return;
-        if (!window.confirm('Are you sure you want to cancel this order?')) return;
-        setLoading(true);
-        try {
-            await orderService.cancel(orderResult.id, 'User cancelled');
-            setOrderResult((prev: any) => ({ ...prev, status: 'cancelled' }));
-            setSuccessMsg('Order cancelled.');
-        } catch (e: any) {
-            setError(e.message);
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    return (
-        <Grid container spacing={4} sx={{ height: '100%', alignItems: 'stretch' }}>
-
-            {/* LEFT PANEL (Builder) - 60% approx */}
-            <Grid size={{ xs: 12, md: 7 }}>
-
-                <Typography variant="h5" fontWeight={800} gutterBottom sx={{ mb: 3, pl: 1 }}>
-                    {/* CREATE DELIVERY */}
-                    สร้างคำสั่งส่งของ
-                </Typography>
-
-                <DeliveryForm
-                    pickup={pickup} setPickup={setPickup}
-                    delivery={delivery} setDelivery={setDelivery}
-                    deliveryTab={deliveryTab} setDeliveryTab={setDeliveryTab}
-                    parcelType={parcelType} setParcelType={setParcelType}
-                    parcelSize={parcelSize} setParcelSize={setParcelSize}
-                    services={services} setServices={setServices}
-                    note={note} setNote={setNote}
-                    loading={loading}
-                    onSubmit={handleCreateOrder}
-                />
-            </Grid>
-
-            {/* RIGHT PANEL (Map + Summary) - 40% approx */}
-            <Grid size={{ xs: 12, md: 5 }}>
-                <OrderSummary
-                    orderResult={orderResult}
-                    loading={loading}
-                    onConfirm={handleCreateOrder}
-                    onCancel={handleCancelOrder}
-                />
-            </Grid>
-
-        </Grid>
-    );
+      {/* RIGHT PANEL (Map + Summary) - 40% approx */}
+      <Grid size={{ xs: 12, md: 5 }}>
+        <OrderSummary
+          token={token}
+          orderResult={orderResult}
+          loading={loading}
+          onConfirm={handleCreateOrder}
+          onCancel={handleCancelOrder}
+          pickup={pickup}
+          deliveries={deliveries}
+          vehicleType={vehicleType}
+        />
+      </Grid>
+    </Grid>
+  );
 };
 
 export default CreateOrderPage;

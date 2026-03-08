@@ -6,6 +6,8 @@ export interface AddressInfo {
     room?: string;
     floor?: string;
     note?: string;
+    contactName?: string;
+    contactPhone?: string;
 }
 
 export interface ContactInfo {

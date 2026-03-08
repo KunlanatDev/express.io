@@ -1,3 +1,4 @@
+import { BorderAll } from '@mui/icons-material';
 import { createTheme, alpha } from '@mui/material/styles';
 
 const getDesignTokens = (mode: 'light' | 'dark') => ({
@@ -51,18 +52,21 @@ const getDesignTokens = (mode: 'light' | 'dark') => ({
     shape: {
         borderRadius: 16, // User requested 14-18px
     },
+    divider: {
+        main: '#E6EDF7',
+    },
     components: {
         MuiButton: {
             styleOverrides: {
                 root: {
-                    borderRadius: 12,
-                    padding: '10px 24px',
+                    height: '44px',
+                    borderRadius: '22px',
                     boxShadow: 'none',
                     transition: 'all 0.2s ease-in-out',
-                    '&:hover': {
-                        transform: 'translateY(-1px)',
-                        boxShadow: '0 4px 12px rgba(37, 99, 235, 0.2)', // Blue shadow
-                    },
+                    // '&:hover': {
+                    //     transform: 'translateY(-1px)',
+                    //     boxShadow: '0 4px 12px rgba(37, 99, 235, 0.2)', // Blue shadow
+                    // },
                 },
                 containedPrimary: {
                     background: 'linear-gradient(135deg, #2563EB 0%, #1D4ED8 100%)',
