@@ -33,11 +33,11 @@ const OrdersPage = () => {
                     exclusive
                     onChange={(_, v) => v && setFilter(v)}
                     color="primary"
-                    sx={{ bgcolor: 'background.paper' }}
+                    sx={{ bgcolor: 'background.paper', width: { xs: '100%', md: 'auto' }, display: 'flex' }}
                 >
-                    <ToggleButton value="today" sx={{ px: 3 }}>Today</ToggleButton>
-                    <ToggleButton value="week" sx={{ px: 3 }}>Last 7 Days</ToggleButton>
-                    <ToggleButton value="month" sx={{ px: 3 }}>This Month</ToggleButton>
+                    <ToggleButton value="today" sx={{ flex: 1, px: { xs: 1, md: 3 } }}>Today</ToggleButton>
+                    <ToggleButton value="week" sx={{ flex: 1, px: { xs: 1, md: 3 }, whiteSpace: 'nowrap' }}>Last 7 Days</ToggleButton>
+                    <ToggleButton value="month" sx={{ flex: 1, px: { xs: 1, md: 3 }, whiteSpace: 'nowrap' }}>This Month</ToggleButton>
                 </ToggleButtonGroup>
 
                 {/* Mock Search/Filter */}
@@ -54,8 +54,14 @@ const OrdersPage = () => {
                                     <Typography variant="subtitle2" color="text.secondary" gutterBottom>ID: {order.order_number}</Typography>
                                     <Typography variant="caption" display="block" color="text.secondary">{new Date(order.created_at).toLocaleString()}</Typography>
                                     <Chip
-                                        label={order.status.toUpperCase()}
-                                        color={order.status === 'completed' ? 'success' : 'default'}
+                                        label={order.status.replace(/_/g, ' ').toUpperCase()}
+                                        color={
+                                            order.status === 'completed' ? 'success' :
+                                            order.status === 'delivered' ? 'success' :
+                                            order.status === 'cancelled' ? 'error' :
+                                            order.status === 'pending' ? 'default' :
+                                            'primary' // matched, arrived_pickup, picked_up, arrived_dropoff
+                                        }
                                         size="small"
                                         sx={{ mt: 1, fontWeight: 700, borderRadius: 1 }}
                                     />

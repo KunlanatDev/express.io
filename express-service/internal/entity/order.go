@@ -43,9 +43,11 @@ type DeliveryOrder struct {
 	DeliveryPhotoURL string `gorm:"type:text" json:"delivery_photo_url"`
 
 	// Timestamps
-	MatchedAt   *time.Time `json:"matched_at"`
-	PickedUpAt  *time.Time `json:"picked_up_at"`
-	DeliveredAt *time.Time `json:"delivered_at"`
+	MatchedAt        *time.Time `json:"matched_at"`
+	ArrivedPickupAt  *time.Time `json:"arrived_pickup_at"`
+	PickedUpAt       *time.Time `json:"picked_up_at"`
+	ArrivedDropoffAt *time.Time `json:"arrived_dropoff_at"`
+	DeliveredAt      *time.Time `json:"delivered_at"`
 
 	// Cancellation
 	CancellationReason *string    `gorm:"type:text" json:"cancellation_reason,omitempty"`

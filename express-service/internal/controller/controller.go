@@ -15,7 +15,8 @@ func SetupRoutes(router fiber.Router, cfg *config.Config, db *gorm.DB, redisClie
 	orderRepo := repo.NewOrderRepository(db)
 
 	pricingService := service.NewPricingService(db)
-	orderService := service.NewOrderService(orderRepo, pricingService, redisClient)
+	dispatchService := service.NewDispatchService(redisClient)
+	orderService := service.NewOrderService(orderRepo, pricingService, dispatchService, redisClient)
 
 	orderController := NewOrderController(orderService, pricingService)
 
@@ -31,7 +32,9 @@ func SetupRoutes(router fiber.Router, cfg *config.Config, db *gorm.DB, redisClie
 	orders := router.Group("/orders")
 	orders.Post("/calculate", orderController.CalculatePrice)
 	orders.Post("/", orderController.CreateOrder)
+	orders.Get("/", orderController.GetAllOrders)
 	orders.Get("/:id", orderController.GetOrder)
+	orders.Post("/:id/confirm-payment", orderController.ConfirmPayment)
 	orders.Post("/:id/accept", orderController.AcceptOrder)
 	orders.Post("/:id/cancel", orderController.CancelOrder)
 	orders.Post("/:id/arrived-pickup", orderController.ArrivedAtPickup)
@@ -59,4 +62,10 @@ func SetupRoutes(router fiber.Router, cfg *config.Config, db *gorm.DB, redisClie
 	tracking.Get("/:id", func(c *fiber.Ctx) error {
 		return c.JSON(fiber.Map{"message": "Track order placeholder"})
 	})
+
+	// Rider Routes
+	riderController := NewRiderController(redisClient)
+	riders := router.Group("/riders")
+	riders.Post("/location", riderController.UpdateLocation)
+	riders.Post("/status", riderController.ToggleOnline)
 }

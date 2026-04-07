@@ -53,6 +53,8 @@ export interface OrderResponse {
     rider_lat?: number;
     rider_lng?: number;
     delivery_photo_url?: string;
+    pickup_address?: AddressInfo;
+    delivery_address?: AddressInfo;
     created_at: string;
 }
 

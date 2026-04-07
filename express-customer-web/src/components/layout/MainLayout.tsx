@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { useNavigate, useLocation } from "react-router-dom";
 import {
   AppBar,
   Toolbar,
@@ -14,6 +15,11 @@ import {
   MenuItem,
   ListItemIcon,
   Divider,
+  Drawer,
+  List,
+  ListItem,
+  ListItemButton,
+  ListItemText,
 } from "@mui/material";
 import {
   HelpOutline,
@@ -29,6 +35,7 @@ import {
   History,
   Apple,
   Android,
+  Menu as MenuIcon,
 } from "@mui/icons-material";
 import { alpha } from "@mui/material/styles";
 
@@ -50,11 +57,25 @@ const MainLayout: React.FC<MainLayoutProps> = ({
   onLoginClick,
 }) => {
   const theme = useTheme();
+  const navigate = useNavigate();
+  const location = useLocation();
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
+  const [mobileOpen, setMobileOpen] = useState(false);
+
+  const handleDrawerToggle = () => {
+    setMobileOpen(!mobileOpen);
+  };
 
   const handleMenu = (event: React.MouseEvent<HTMLElement>) =>
     setAnchorEl(event.currentTarget);
   const handleClose = () => setAnchorEl(null);
+
+  const navItems = [
+    { label: "ส่งพัสดุ", icon: Send, path: "/", show: true },
+    { label: "ติดตาม", icon: Place, path: "/tracking", show: true },
+    { label: "ประวัติ", icon: History, path: "/orders", show: !!token },
+    { label: "ช่วยเหลือ", icon: HelpOutline, path: "/help", show: true },
+  ];
 
   return (
     <Box
@@ -76,7 +97,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({
           height: 72,
           justifyContent: "center",
           transition: "all 0.3s ease",
-          padding: "0 96px",
+          padding: { xs: 0, lg: "0 96px" },
         }}
       >
         <Container maxWidth="xl">
@@ -106,54 +127,62 @@ const MainLayout: React.FC<MainLayoutProps> = ({
                 variant="h6"
                 sx={{
                   fontWeight: 800,
-                  fontSize: "1.25rem",
+                  fontSize: { xs: "1rem", sm: "1.25rem" },
                   color: mode === "light" ? "#1e293b" : "#f8fafc",
                   letterSpacing: 0.5,
+                  display: { xs: "none", sm: "block" },
                 }}
               >
                 EXPRESS.IO
               </Typography>
 
-              {[
-                { label: "ส่งพัสดุ", icon: Send, active: true, show: true },
-                { label: "ติดตาม", icon: Place, active: false, show: true },
-                { label: "ประวัติ", icon: History, active: false, show: token },
-                {
-                  label: "ช่วยเหลือ",
-                  icon: HelpOutline,
-                  active: false,
-                  show: true,
-                },
-              ].map(
-                (item) =>
-                  item.show && (
-                    <Button
-                      key={item.label}
-                      startIcon={<item.icon sx={{ fontSize: 20 }} />}
-                      variant="text"
-                      sx={{
-                        px: 2,
-                        py: 1,
-                        textTransform: "none",
-                        fontSize: 15,
-                        fontWeight: 600,
-                        color: item.active
-                          ? mode === "light"
+              <Box sx={{ display: { xs: "none", md: "flex" }, alignItems: "center", ml: 4 }}>
+                {navItems.map(
+                  (item) =>
+                    item.show &&
+                    (() => {
+                      const isActive =
+                        item.path === "/"
+                          ? location.pathname === "/"
+                          : location.pathname.startsWith(item.path);
+                      return (
+                        <Button
+                          key={item.label}
+                          startIcon={<item.icon sx={{ fontSize: 20 }} />}
+                          variant="text"
+                          onClick={() => navigate(item.path)}
+                          sx={{
+                            px: 2,
+                            py: 1,
+                          textTransform: "none",
+                          fontSize: 15,
+                          fontWeight: 600,
+                          color: isActive
+                            ? mode === "light"
+                              ? "primary.main"
+                              : "primary.light"
+                            : mode === "light"
+                              ? "text.secondary"
+                              : "grey.400",
+                          borderBottom: isActive
+                            ? "2px solid"
+                            : "2px solid transparent",
+                          borderRadius: 0,
+                          borderColor: isActive
                             ? "primary.main"
-                            : "primary.light"
-                          : mode === "light"
-                            ? "text.secondary"
-                            : "grey.400",
-                        "&:hover": {
-                          bgcolor: alpha(theme.palette.primary.main, 0.08),
-                          color: "primary.main",
-                        },
-                      }}
-                    >
-                      {item.label}
-                    </Button>
-                  ),
-              )}
+                            : "transparent",
+                          "&:hover": {
+                            bgcolor: alpha(theme.palette.primary.main, 0.08),
+                            color: "primary.main",
+                          },
+                        }}
+                      >
+                        {item.label}
+                      </Button>
+                    );
+                  })(),
+                )}
+              </Box>
             </Stack>
 
             {/* RIGHT: ACTIONS */}
@@ -213,6 +242,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({
                       sx={{
                         fontWeight: 600,
                         color: mode === "light" ? "#334155" : "#fff",
+                        display: { xs: "none", sm: "block" },
                       }}
                     >
                       K.Somchai
@@ -307,12 +337,94 @@ const MainLayout: React.FC<MainLayoutProps> = ({
                 </>
               )}
             </Stack>
+
+            {/* Mobile Nav Toggle */}
+            <IconButton
+              color="inherit"
+              aria-label="open drawer"
+              edge="end"
+              onClick={handleDrawerToggle}
+              sx={{ display: { md: "none" }, ml: 1, color: mode === "light" ? "text.primary" : "text.secondary" }}
+            >
+              <MenuIcon />
+            </IconButton>
           </Toolbar>
         </Container>
       </AppBar>
 
+      {/* Mobile Drawer */}
+      <Drawer
+        anchor="right"
+        open={mobileOpen}
+        onClose={handleDrawerToggle}
+        ModalProps={{
+          keepMounted: true, // Better open performance on mobile.
+        }}
+        PaperProps={{
+          sx: {
+            width: 250,
+            bgcolor: mode === "light" ? "#ffffff" : "#0B1120",
+          },
+        }}
+      >
+        <Box sx={{ p: 2, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <Stack direction="row" alignItems="center" spacing={1.5}>
+            <Box
+              sx={{
+                width: 32,
+                height: 32,
+                borderRadius: "8px",
+                bgcolor: "#2563EB",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              <Inventory2 sx={{ fontSize: 18, color: "#fff" }} />
+            </Box>
+            <Typography variant="subtitle1" fontWeight={800} color={mode === "light" ? "#1e293b" : "#f8fafc"}>
+              EXPRESS.IO
+            </Typography>
+          </Stack>
+        </Box>
+        <Divider />
+        <List>
+          {navItems.map((item) => {
+            if (!item.show) return null;
+            const isActive =
+              item.path === "/"
+                ? location.pathname === "/"
+                : location.pathname.startsWith(item.path);
+            
+            return (
+              <ListItem key={item.label} disablePadding>
+                <ListItemButton
+                  onClick={() => {
+                    navigate(item.path);
+                    handleDrawerToggle();
+                  }}
+                  sx={{
+                    color: isActive
+                      ? "primary.main"
+                      : mode === "light"
+                      ? "text.primary"
+                      : "text.secondary",
+                    bgcolor: isActive ? alpha(theme.palette.primary.main, 0.08) : "transparent",
+                  }}
+                >
+                  <ListItemIcon sx={{ color: "inherit", minWidth: 40 }}>
+                    <item.icon />
+                  </ListItemIcon>
+                  <ListItemText primary={item.label} primaryTypographyProps={{ fontWeight: isActive ? 700 : 500 }} />
+                </ListItemButton>
+              </ListItem>
+            );
+          })}
+        </List>
+      </Drawer>
+
       {/* CONTENT */}
-      <Box sx={{ flexGrow: 1, py: 4, px: "116px" }}>
+      <Box sx={{ flexGrow: 1, py: { xs: 2, md: 4 }, px: { xs: 2, lg: "116px" } }}>
         <Container maxWidth="xl">{children}</Container>
       </Box>
 
@@ -322,10 +434,10 @@ const MainLayout: React.FC<MainLayoutProps> = ({
           bgcolor: mode === "light" ? "#FFFFFF" : "#0B1120",
           borderTop: "1px solid",
           borderColor: mode === "light" ? "divider" : "rgba(255,255,255,0.1)",
-          pt: 8,
+          pt: { xs: 4, md: 8 },
           pb: 4,
           mt: "auto",
-          px: "96px",
+          px: { xs: 2, lg: "96px" },
         }}
       >
         <Container maxWidth="xl">

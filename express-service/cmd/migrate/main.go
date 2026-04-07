@@ -20,7 +20,9 @@ func main() {
 		"ALTER TABLE delivery_orders ADD COLUMN IF NOT EXISTS pickup_photo_url TEXT",
 		"ALTER TABLE delivery_orders ADD COLUMN IF NOT EXISTS delivery_photo_url TEXT",
 		"ALTER TABLE delivery_orders ADD COLUMN IF NOT EXISTS matched_at TIMESTAMP",
+		"ALTER TABLE delivery_orders ADD COLUMN IF NOT EXISTS arrived_pickup_at TIMESTAMP",
 		"ALTER TABLE delivery_orders ADD COLUMN IF NOT EXISTS picked_up_at TIMESTAMP",
+		"ALTER TABLE delivery_orders ADD COLUMN IF NOT EXISTS arrived_dropoff_at TIMESTAMP",
 		"ALTER TABLE delivery_orders ADD COLUMN IF NOT EXISTS delivered_at TIMESTAMP",
 	}
 

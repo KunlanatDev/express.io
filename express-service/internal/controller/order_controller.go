@@ -88,6 +88,15 @@ func (c *OrderController) GetOrder(ctx *fiber.Ctx) error {
 	return ctx.Status(fiber.StatusOK).JSON(order)
 }
 
+func (c *OrderController) GetAllOrders(ctx *fiber.Ctx) error {
+	orders, err := c.orderService.GetAllOrders(context.Background())
+	if err != nil {
+		return ctx.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to get orders"})
+	}
+
+	return ctx.Status(fiber.StatusOK).JSON(orders)
+}
+
 func (c *OrderController) AcceptOrder(ctx *fiber.Ctx) error {
 	orderID := ctx.Params("id")
 	if orderID == "" {

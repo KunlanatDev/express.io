@@ -36,12 +36,15 @@ interface OrderSummaryProps {
   onApplyPromo?: () => void;
   mapDistance?: number;
   mapDurationMins?: number;
+  onConfirmPayment?: (id: string) => void;
 }
 
 const OrderSummary: React.FC<OrderSummaryProps> = ({
   token,
   orderResult,
+  loading,
   onConfirm,
+  onCancel,
   pickup,
   deliveries,
   vehicleType,
@@ -53,9 +56,16 @@ const OrderSummary: React.FC<OrderSummaryProps> = ({
   onApplyPromo,
   mapDistance,
   mapDurationMins,
+  onConfirmPayment,
 }) => {
   // Map tab index -> service key
   const serviceKeys = ["express", "sameday", "intercity"];
+
+  const handleConfirmPayment = (id: string) => {
+      if (onConfirmPayment) {
+          onConfirmPayment(id);
+      }
+  };
   const activeServiceKey = serviceKeys[selectedServiceTab ?? 0];
   // Find the matching service from pricing data
   const activeService =
@@ -64,6 +74,12 @@ const OrderSummary: React.FC<OrderSummaryProps> = ({
     ) ??
     pricingData?.services?.[selectedServiceTab ?? 0] ??
     null;
+
+  // ตรวจว่าผู้ใช้เลือกที่อยู่จัดส่งแล้วหรือยัง
+  const hasDestination = deliveries.some(
+    (d) => d.address && d.address.trim() !== "" && (d.lat !== 0 || d.lng !== 0),
+  );
+
   const [promoApplied, setPromoApplied] = useState(false);
   const [promoError, setPromoError] = useState("");
 
@@ -241,83 +257,97 @@ const OrderSummary: React.FC<OrderSummaryProps> = ({
             >
               ราคาโดยประมาณ
             </Typography>
-            <Stack direction="row" alignItems="baseline" spacing={1.5}>
-              {token ? (
-                <>
-                  <Typography
-                    variant="h3"
-                    sx={{
-                      fontWeight: 800,
-                      color: "#2563EB",
-                      fontSize: "2.5rem",
-                      letterSpacing: -1,
-                    }}
-                  >
-                    {formatPrice(
-                      orderResult
-                        ? orderResult.total_price
-                        : activeService
-                          ? activeService.total_price
-                          : pricingData
-                            ? pricingData.total_price
-                            : 45,
-                    )}
-                  </Typography>
-                  {/* Show original price (before discount) only when a promo is applied */}
-                  {((pricingData?.promo_discount ?? 0) > 0 ||
-                    (orderResult?.promo_discount ?? 0) > 0) && (
+            {!hasDestination ? (
+              /* ยังไม่ได้เลือกที่อยู่จัดส่ง */
+              <Typography
+                variant="h4"
+                sx={{
+                  fontWeight: 800,
+                  color: "text.disabled",
+                  fontSize: "2rem",
+                }}
+              >
+                —
+              </Typography>
+            ) : (
+              <Stack direction="row" alignItems="baseline" spacing={1.5}>
+                {token ? (
+                  <>
                     <Typography
-                      variant="h6"
+                      variant="h3"
                       sx={{
-                        textDecoration: "line-through",
-                        color: "#94a3b8",
-                        fontWeight: 500,
+                        fontWeight: 800,
+                        color: "#2563EB",
+                        fontSize: "2.5rem",
+                        letterSpacing: -1,
                       }}
                     >
                       {formatPrice(
                         orderResult
-                          ? orderResult.total_price +
-                              (orderResult.promo_discount || 0)
+                          ? orderResult.total_price
                           : activeService
-                            ? activeService.total_price +
-                              (pricingData.promo_discount || 0)
+                            ? activeService.total_price
                             : pricingData
-                              ? pricingData.total_price +
-                                (pricingData.promo_discount || 0)
+                              ? pricingData.total_price
                               : 0,
                       )}
                     </Typography>
-                  )}
-                </>
-              ) : (
-                <Box sx={{ position: "relative", display: "inline-block" }}>
-                  <Typography
-                    variant="h3"
-                    sx={{
-                      fontWeight: 800,
-                      color: "#2563EB",
-                      fontSize: "2.5rem",
-                      letterSpacing: -1,
-                      filter: "blur(8px)",
-                      opacity: 0.5,
-                      userSelect: "none",
-                    }}
-                  >
-                    ฿99.00
-                  </Typography>
-                  <Lock
-                    sx={{
-                      position: "absolute",
-                      left: "50%",
-                      top: "50%",
-                      transform: "translate(-50%, -50%)",
-                      color: "#64748B",
-                      fontSize: 28,
-                    }}
-                  />
-                </Box>
-              )}
-            </Stack>
+                    {/* Show original price (before discount) only when a promo is applied */}
+                    {((pricingData?.promo_discount ?? 0) > 0 ||
+                      (orderResult?.promo_discount ?? 0) > 0) && (
+                      <Typography
+                        variant="h6"
+                        sx={{
+                          textDecoration: "line-through",
+                          color: "#94a3b8",
+                          fontWeight: 500,
+                        }}
+                      >
+                        {formatPrice(
+                          orderResult
+                            ? orderResult.total_price +
+                                (orderResult.promo_discount || 0)
+                            : activeService
+                              ? activeService.total_price +
+                                (pricingData.promo_discount || 0)
+                              : pricingData
+                                ? pricingData.total_price +
+                                  (pricingData.promo_discount || 0)
+                                : 0,
+                        )}
+                      </Typography>
+                    )}
+                  </>
+                ) : (
+                  <Box sx={{ position: "relative", display: "inline-block" }}>
+                    <Typography
+                      variant="h3"
+                      sx={{
+                        fontWeight: 800,
+                        color: "#2563EB",
+                        fontSize: "2.5rem",
+                        letterSpacing: -1,
+                        filter: "blur(8px)",
+                        opacity: 0.5,
+                        userSelect: "none",
+                      }}
+                    >
+                      ฿99.00
+                    </Typography>
+                    <Lock
+                      sx={{
+                        position: "absolute",
+                        left: "50%",
+                        top: "50%",
+                        transform: "translate(-50%, -50%)",
+                        color: "#64748B",
+                        fontSize: 28,
+                      }}
+                    />
+                  </Box>
+                )}
+              </Stack>
+            )}
           </Box>
           <Box sx={{ textAlign: "right" }}>
             <Typography
@@ -327,16 +357,26 @@ const OrderSummary: React.FC<OrderSummaryProps> = ({
             >
               ถึงผู้รับประมาณ
             </Typography>
-            <Typography variant="h6" sx={{ fontWeight: 800, color: "#0F172A" }}>
-              {/* Only use live Google Maps duration for Express — other services have fixed ETA semantics */}
-              {mapDurationMins &&
-              mapDurationMins > 0 &&
-              activeServiceKey === "express"
-                ? formatETA(mapDurationMins)
-                : activeService?.eta ||
-                  pricingData?.eta ||
-                  "14:20 \u2013 14:50"}
-            </Typography>
+            {!hasDestination ? (
+              <Typography
+                variant="h6"
+                sx={{ fontWeight: 800, color: "text.disabled" }}
+              >
+                —
+              </Typography>
+            ) : (
+              <Typography
+                variant="h6"
+                sx={{ fontWeight: 800, color: "#0F172A" }}
+              >
+                {/* Only use live Google Maps duration for Express — other services have fixed ETA semantics */}
+                {mapDurationMins &&
+                mapDurationMins > 0 &&
+                activeServiceKey === "express"
+                  ? formatETA(mapDurationMins)
+                  : activeService?.eta || pricingData?.eta || "—"}
+              </Typography>
+            )}
           </Box>
         </Stack>
 
@@ -344,22 +384,31 @@ const OrderSummary: React.FC<OrderSummaryProps> = ({
 
         {/* Cost Breakdown */}
         <Stack spacing={2} sx={{ mb: 3 }}>
+          {/* ค่าจัดส่ง */}
           <Stack direction="row" justifyContent="space-between">
             <Typography variant="body1" color="text.secondary" fontWeight={500}>
               ค่าจัดส่ง (
-              {mapDistance && mapDistance > 0
-                ? mapDistance.toFixed(1)
-                : pricingData?.distance || 4.2}{" "}
-              กม.)
+              {hasDestination
+                ? `${mapDistance && mapDistance > 0 ? mapDistance.toFixed(1) : (pricingData?.distance ?? "—")} กม.`
+                : "—"}
+              )
             </Typography>
-            {token ? (
+            {!hasDestination ? (
+              <Typography
+                variant="body1"
+                fontWeight={700}
+                color="text.disabled"
+              >
+                —
+              </Typography>
+            ) : token ? (
               <Typography variant="body1" fontWeight={700} color="#0F172A">
                 {formatPrice(
                   orderResult
                     ? orderResult.distance_price
                     : pricingData
                       ? pricingData.distance_price
-                      : 35,
+                      : 0,
                 )}
               </Typography>
             ) : (
@@ -390,18 +439,28 @@ const OrderSummary: React.FC<OrderSummaryProps> = ({
               </Box>
             )}
           </Stack>
+
+          {/* ค่าบริการพื้นฐาน */}
           <Stack direction="row" justifyContent="space-between">
             <Typography variant="body1" color="text.secondary" fontWeight={500}>
               ค่าบริการพื้นฐาน
             </Typography>
-            {token ? (
+            {!hasDestination ? (
+              <Typography
+                variant="body1"
+                fontWeight={700}
+                color="text.disabled"
+              >
+                —
+              </Typography>
+            ) : token ? (
               <Typography variant="body1" fontWeight={700} color="#0F172A">
                 {formatPrice(
                   orderResult
                     ? orderResult.base_price
                     : pricingData
                       ? pricingData.base_price
-                      : 10,
+                      : 0,
                 )}
               </Typography>
             ) : (
@@ -432,15 +491,25 @@ const OrderSummary: React.FC<OrderSummaryProps> = ({
               </Box>
             )}
           </Stack>
+
+          {/* ส่วนลด */}
           <Stack direction="row" justifyContent="space-between">
             <Typography
               variant="body1"
               fontWeight={700}
               sx={{ color: "#0F172A" }}
             >
-              ส่วนลด (โค้ด: {promoCode || "-"})
+              ส่วนลด (โค้ด: {promoCode || "—"})
             </Typography>
-            {token ? (
+            {!hasDestination ? (
+              <Typography
+                variant="body1"
+                fontWeight={700}
+                color="text.disabled"
+              >
+                —
+              </Typography>
+            ) : token ? (
               <Typography
                 variant="body1"
                 fontWeight={700}
@@ -562,26 +631,47 @@ const OrderSummary: React.FC<OrderSummaryProps> = ({
           fullWidth
           variant="contained"
           size="large"
-          onClick={onConfirm}
-          endIcon={<ArrowForward />}
+          onClick={orderResult && orderResult.status as string === "pending_payment" ? () => handleConfirmPayment(orderResult.id) : onConfirm}
+          disabled={loading}
+          endIcon={orderResult && orderResult.status as string === "pending_payment" ? null : <ArrowForward />}
           sx={{
-            bgcolor: "#2563EB",
+            bgcolor: orderResult && orderResult.status as string === "pending_payment" ? "#10b981" : "#2563EB",
             color: "white",
             py: 1.5,
             borderRadius: 3,
             fontSize: "1rem",
             fontWeight: 700,
             textTransform: "none",
-            boxShadow: "0 10px 20px -5px rgba(37, 99, 235, 0.4)",
+            boxShadow: `0 10px 20px -5px ${orderResult && orderResult.status as string === "pending_payment" ? "rgba(16, 185, 129, 0.4)" : "rgba(37, 99, 235, 0.4)"}`,
             mb: 2,
             "&:hover": {
-              bgcolor: "#1d4ed8",
-              boxShadow: "0 12px 24px -5px rgba(37, 99, 235, 0.5)",
+              bgcolor: orderResult && orderResult.status as string === "pending_payment" ? "#059669" : "#1d4ed8",
+              boxShadow: `0 12px 24px -5px ${orderResult && orderResult.status as string === "pending_payment" ? "rgba(16, 185, 129, 0.5)" : "rgba(37, 99, 235, 0.5)"}`,
             },
           }}
         >
-          ยืนยันคำสั่งส่งพัสดุ
+          {loading ? "กำลังโหลด..." : orderResult && orderResult.status as string === "pending_payment" ? "ชำระเงินเพื่อเรียกไรเดอร์" : "ยืนยันคำสั่งส่งพัสดุ"}
         </Button>
+
+        {orderResult && orderResult.status as string !== "pending_payment" && (
+           <Button
+             fullWidth
+             variant="outlined"
+             color="error"
+             size="large"
+             onClick={onCancel}
+             disabled={loading}
+             sx={{
+               py: 1.5,
+               borderRadius: 3,
+               fontSize: "1rem",
+               fontWeight: 700,
+               mb: 2,
+             }}
+           >
+             ยกเลิกคำสั่ง
+           </Button>
+        )}
 
         <Typography
           variant="caption"

@@ -29,7 +29,7 @@ func NewPubSubService(cfg *config.Config, wsHandler *websocket.Handler) *PubSubS
 
 func (s *PubSubService) SubscribeToOrderEvents() {
 	ctx := context.Background()
-	pubsub := s.client.Subscribe(ctx, "orders:created", "orders:updated")
+	pubsub := s.client.Subscribe(ctx, "orders:created", "orders:updated", "dispatch:rider_notif")
 
 	// Wait for confirmation that we are subscribed
 	_, err := pubsub.Receive(ctx)
@@ -37,7 +37,7 @@ func (s *PubSubService) SubscribeToOrderEvents() {
 		log.Fatalf("Failed to subscribe to Redis: %v", err)
 	}
 
-	log.Println("Subscribed to Redis channels: orders:created, orders:updated")
+	log.Println("Subscribed to Redis channels: orders:created, orders:updated, dispatch:rider_notif")
 
 	ch := pubsub.Channel()
 

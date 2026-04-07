@@ -3,6 +3,8 @@ import { Grid, Typography, Alert, Button, Box } from "@mui/material";
 import { Lock, Login } from "@mui/icons-material";
 import DeliveryForm from "../components/delivery/DeliveryForm";
 import OrderSummary from "../components/delivery/OrderSummary";
+import OrderConfirmationDialog from "../components/delivery/OrderConfirmationDialog";
+import PaymentDialog from "../components/delivery/PaymentDialog";
 import { orderService } from "../services/order";
 import type { OrderResponse, AddressInfo } from "../types";
 
@@ -23,6 +25,7 @@ const CreateOrderPage: React.FC<CreateOrderPageProps> = ({
   orderResult,
   setOrderResult,
   setSuccessMsg,
+  error,
   setError,
 }) => {
   // Order Form State
@@ -67,6 +70,10 @@ const CreateOrderPage: React.FC<CreateOrderPageProps> = ({
   const [pricingData, setPricingData] = useState<any>(null);
   const [mapDistance, setMapDistance] = useState<number>(0);
   const [mapDurationMins, setMapDurationMins] = useState<number>(0);
+
+  // Popup state
+  const [showConfirmPopup, setShowConfirmPopup] = useState(false);
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
 
   // Auto calculate when inputs change
   React.useEffect(() => {
@@ -235,7 +242,9 @@ const CreateOrderPage: React.FC<CreateOrderPageProps> = ({
 
       const res = await orderService.create(orderData);
       setOrderResult(res);
-      setSuccessMsg("Order successfully created! Finding nearby riders...");
+      setSuccessMsg("สร้างคำสั่งเรียบร้อย กรุณาชำระเงินเพื่อเรียกไรเดอร์");
+      // DO NOT pop up the Confirm Popup yet, wait for payment!
+      // setShowConfirmPopup(true); 
     } catch (err: unknown) {
       const errorObj = err as Error;
       setError(errorObj?.message || "Failed to create order");
@@ -266,6 +275,11 @@ const CreateOrderPage: React.FC<CreateOrderPageProps> = ({
     <Grid container spacing={4} sx={{ height: "100%", alignItems: "stretch" }}>
       {/* LEFT PANEL (Builder) - 60% approx */}
       <Grid size={{ xs: 12, md: 7 }}>
+        {error && (
+          <Alert severity="error" sx={{ mb: 3 }} onClose={() => setError(null)}>
+            {error}
+          </Alert>
+        )}
         {!token && (
           <Alert
             severity="warning"
@@ -384,8 +398,61 @@ const CreateOrderPage: React.FC<CreateOrderPageProps> = ({
             // Force recalculation by setting promoCode again (triggers useEffect)
             setPromoCode((prev) => prev);
           }}
+          onConfirmPayment={() => {
+            // Instead of direct API call, open the awesome mock payment modal
+            setShowPaymentModal(true);
+          }}
         />
       </Grid>
+
+      {/* Payment Gateway Modal (Mock) */}
+      <PaymentDialog
+        open={showPaymentModal}
+        order={orderResult}
+        onClose={() => setShowPaymentModal(false)}
+        onSuccess={async (id) => {
+          try {
+            setLoading(true);
+            const newOrderState = await orderService.confirmPayment(id);
+            setOrderResult(newOrderState);
+            setShowPaymentModal(false);
+            setSuccessMsg("ชำระเงินเรียบร้อยแล้ว ระบบกำลังหาไรเดอร์ให้คุณ...");
+            setShowConfirmPopup(true);
+          } catch (e: unknown) {
+            const errObj = e as Error;
+            setError(errObj.message || "Failed to confirm payment");
+          } finally {
+            setLoading(false);
+          }
+        }}
+      />
+
+      {/* Confirmation Popup */}
+      <OrderConfirmationDialog
+        open={showConfirmPopup}
+        order={orderResult}
+        onClose={() => setShowConfirmPopup(false)}
+        onNewOrder={() => {
+          setShowConfirmPopup(false);
+          setOrderResult(null);
+          // reset states back to default
+          setPickup({ address: "", lat: 13.7563, lng: 100.5018 });
+          setDeliveries([{ address: "", lat: 13.7563, lng: 100.5018 }]);
+          setDeliveryTab(0);
+          setVehicleType("motorcycle");
+          setParcelType("box");
+          setParcelSize("M");
+          setNote("");
+        }}
+        onViewOrder={() => {
+          setShowConfirmPopup(false);
+          if (orderResult?.id) {
+            window.location.href = `/tracking?tracking_no=${orderResult.id}`;
+          } else {
+            window.location.href = `/tracking`;
+          }
+        }}
+      />
     </Grid>
   );
 };

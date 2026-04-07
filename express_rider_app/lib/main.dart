@@ -1,13 +1,58 @@
-import 'dart:convert';
 import 'dart:io';
-import 'dart:async'; // Added for Timer
 import 'package:flutter/material.dart';
-import 'package:web_socket_channel/web_socket_channel.dart';
-import 'package:http/http.dart' as http;
-import 'package:image_picker/image_picker.dart';
+import 'package:flutter/services.dart';
+import 'screens/login_screen.dart';
 
 void main() {
+  WidgetsFlutterBinding.ensureInitialized();
+  // Ignore HTTP certificate errors for local dev if needed
+  HttpOverrides.global = MyHttpOverrides();
+  // Force light status bar icons (dark text on light backgrounds)
+  SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
+    statusBarBrightness: Brightness.light,
+    statusBarIconBrightness: Brightness.dark,
+  ));
   runApp(const MyApp());
+}
+
+class MyHttpOverrides extends HttpOverrides {
+  @override
+  HttpClient createHttpClient(SecurityContext? context) {
+    return super.createHttpClient(context)
+      ..badCertificateCallback =
+          (X509Certificate cert, String host, int port) => true;
+  }
+}
+
+/// Shared design tokens — mirroring express-customer-web theme
+class AppColors {
+  // Primary blue (matches web #3960ED)
+  static const primary = Color(0xFF3960ED);
+  static const primaryLight = Color(0xFFEEF2FF);
+  static const primaryDark = Color(0xFF2E4DC2);
+
+  // Accent orange (rider brand)
+  static const accent = Color(0xFFFF6B35);
+  static const accentLight = Color(0xFFFFF3EE);
+
+  // Neutrals (matches web Slate palette)
+  static const surface = Color(0xFFFFFFFF);
+  static const background = Color(0xFFF8FAFC); // Slate 50
+  static const border = Color(0xFFE2E8F0);     // Slate 200
+  static const divider = Color(0xFFF1F5F9);    // Slate 100
+
+  // Text
+  static const textPrimary = Color(0xFF0F172A);   // Slate 900
+  static const textSecondary = Color(0xFF64748B); // Slate 500
+  static const textMuted = Color(0xFF94A3B8);     // Slate 400
+
+  // Status
+  static const success = Color(0xFF22C55E);
+  static const successLight = Color(0xFFF0FDF4);
+  static const error = Color(0xFFEF4444);
+  static const errorLight = Color(0xFFFEF2F2);
+  static const warning = Color(0xFFF59E0B);
+  static const warningLight = Color(0xFFFFFBEB);
 }
 
 class MyApp extends StatelessWidget {
@@ -20,576 +65,180 @@ class MyApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         fontFamily: 'Inter',
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.teal),
         useMaterial3: true,
-      ),
-      home: const RiderHomePage(),
-    );
-  }
-}
-
-class RiderHomePage extends StatefulWidget {
-  const RiderHomePage({super.key});
-
-  @override
-  State<RiderHomePage> createState() => _RiderHomePageState();
-}
-
-class _RiderHomePageState extends State<RiderHomePage> {
-  WebSocketChannel? _channel;
-  bool _isOnline = false;
-  List<String> _logs = [];
-  final ImagePicker _picker = ImagePicker();
-  Timer? _locationTimer; // Timer for location updates
-
-  // Active Job State
-  String? _currentOrderId;
-  String? _availableOrderId; // New order waiting to be accepted
-  String _jobStatus = 'idle';
-
-  @override
-  void dispose() {
-    _locationTimer?.cancel();
-    _channel?.sink.close();
-    super.dispose();
-  }
-
-  void _toggleOnline() {
-    setState(() {
-      if (_isOnline) {
-        _channel?.sink.close();
-        _isOnline = false;
-        _logs.add("🔴 Offline");
-      } else {
-        _connectWebSocket();
-      }
-    });
-  }
-
-  void _connectWebSocket() {
-    try {
-      _channel = WebSocketChannel.connect(Uri.parse('ws://localhost:8083/ws'));
-      _isOnline = true;
-      _logs.add("🟢 Online - Connected to Gateway");
-
-      _channel!.stream.listen(
-        (message) {
-          _handleMessage(message);
-        },
-        onError: (error) {
-          setState(() {
-            _logs.add("❌ Error: $error");
-            _isOnline = false;
-          });
-        },
-        onDone: () {
-          setState(() {
-            _logs.add("🔌 Disconnected");
-            _isOnline = false;
-          });
-        },
-      );
-    } catch (e) {
-      setState(() {
-        _logs.add("❌ Connection failed: $e");
-      });
-    }
-  }
-
-  void _handleMessage(String message) {
-    try {
-      final data = jsonDecode(message);
-      setState(() {
-        _logs.add("📩 ${data['type']}");
-      });
-
-      if (data['type'] == 'ORDER_CREATED') {
-        final orderId = data['data']['id'];
-        setState(() {
-          _availableOrderId = orderId;
-          _logs.add("🆕 New Order Available: $orderId");
-        });
-        // Show popup
-        _showAcceptJobDialog(orderId, data['data']);
-      } else if (data['type'] == 'ORDER_ACCEPTED') {
-        setState(() {
-          _currentOrderId = data['order_id'];
-          _jobStatus = 'matched';
-          _availableOrderId = null;
-          _logs.add("✅ Job Accepted: $_currentOrderId");
-        });
-      } else if (data['type'] == 'ORDER_ARRIVED_PICKUP') {
-        setState(() {
-          _jobStatus = 'arrived_pickup';
-          _logs.add("📍 Arrived at Pickup");
-        });
-      } else if (data['type'] == 'ORDER_PICKED_UP') {
-        setState(() {
-          _jobStatus = 'picked_up';
-          _logs.add("📦 Parcel Picked Up");
-        });
-      } else if (data['type'] == 'ORDER_ARRIVED_DROPOFF') {
-        setState(() {
-          _jobStatus = 'arrived_dropoff';
-          _logs.add("📍 Arrived at Dropoff");
-        });
-      } else if (data['type'] == 'ORDER_DELIVERED') {
-        setState(() {
-          _jobStatus = 'delivered';
-          _logs.add("✅ Parcel Delivered");
-        });
-      } else if (data['type'] == 'ORDER_COMPLETED') {
-        setState(() {
-          _jobStatus = 'completed';
-          _logs.add("💰 Payment Confirmed - Job Complete");
-          _stopLocationSharing(); // Stop sharing location
-        });
-      }
-    } catch (e) {
-      setState(() {
-        _logs.add("⚠️ Parse error: $e");
-      });
-    }
-  }
-
-  void _showAcceptJobDialog(String orderId, Map<String, dynamic> orderData) {
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          title: const Text('🚚 New Delivery Job'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Order ID: $orderId',
-                style: const TextStyle(fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'Pickup: ${orderData['pickup_address']?['address'] ?? 'N/A'}',
-              ),
-              Text(
-                'Delivery: ${orderData['delivery_address']?['address'] ?? 'N/A'}',
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'Price: ฿${orderData['total_price'] ?? '0'}',
-                style: const TextStyle(
-                  color: Colors.green,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () {
-                setState(() {
-                  _availableOrderId = null;
-                });
-                Navigator.of(context).pop();
-              },
-              child: const Text('Decline'),
-            ),
-            ElevatedButton(
-              onPressed: () {
-                Navigator.of(context).pop();
-                _acceptJob(orderId);
-              },
-              style: ElevatedButton.styleFrom(backgroundColor: Colors.teal),
-              child: const Text('Accept Job'),
-            ),
-          ],
-        );
-      },
-    );
-  }
-
-  Future<void> _acceptJob(String orderId) async {
-    try {
-      final response = await http.post(
-        Uri.parse('http://localhost:8082/api/v1/orders/$orderId/accept'),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({
-          'rider_id': '00000000-0000-0000-0000-000000000001',
-        }), // Valid UUID for POC
-      );
-
-      if (response.statusCode == 200) {
-        setState(() {
-          _currentOrderId = orderId;
-          _jobStatus = 'matched';
-          _availableOrderId = null;
-          _logs.add("✅ Job Accepted Successfully");
-          _startLocationSharing(); // Start sharing location
-        });
-      } else {
-        setState(() {
-          _logs.add("❌ Accept Failed: ${response.statusCode}");
-        });
-      }
-    } catch (e) {
-      setState(() {
-        _logs.add("❌ Accept Error: $e");
-      });
-    }
-  }
-
-  Future<void> _callAPI(String endpoint, {String? photoUrl}) async {
-    if (_currentOrderId == null) return;
-
-    try {
-      final body = photoUrl != null
-          ? jsonEncode({"photo_url": photoUrl})
-          : null;
-      final response = await http.post(
-        Uri.parse(
-          'http://localhost:8082/api/v1/orders/$_currentOrderId/$endpoint',
+        scaffoldBackgroundColor: AppColors.background,
+        colorScheme: const ColorScheme.light(
+          primary: AppColors.primary,
+          onPrimary: Colors.white,
+          secondary: AppColors.accent,
+          onSecondary: Colors.white,
+          surface: AppColors.surface,
+          onSurface: AppColors.textPrimary,
+          error: AppColors.error,
+          onError: Colors.white,
+          outline: AppColors.border,
         ),
-        headers: {'Content-Type': 'application/json'},
-        body: body,
-      );
-
-      if (response.statusCode == 200) {
-        setState(() {
-          _logs.add("✅ API Success: $endpoint");
-        });
-      } else {
-        setState(() {
-          _logs.add("❌ API Error: ${response.statusCode}");
-        });
-      }
-    } catch (e) {
-      setState(() {
-        _logs.add("❌ API Failed: $e");
-      });
-    }
-  }
-
-  Future<String?> _takePhotoAndUpload() async {
-    // MOCK VERSION - Skip camera and use placeholder
-    setState(() {
-      _logs.add("📷 Using mock photo (camera skipped)");
-    });
-
-    // Generate mock photo URL
-    final timestamp = DateTime.now().millisecondsSinceEpoch;
-    final mockPhotoUrl =
-        "http://localhost:8082/uploads/mock_photo_$timestamp.jpg";
-
-    setState(() {
-      _logs.add("✅ Mock photo: $mockPhotoUrl");
-    });
-
-    return mockPhotoUrl;
-
-    /* REAL VERSION - Uncomment when camera works
-    try {
-      final XFile? photo = await _picker.pickImage(
-        source: ImageSource.camera,
-        maxWidth: 1024,
-        maxHeight: 1024,
-        imageQuality: 85,
-      );
-
-      if (photo == null) {
-        setState(() {
-          _logs.add("📷 Photo cancelled");
-        });
-        return null;
-      }
-
-      setState(() {
-        _logs.add("📤 Uploading photo...");
-      });
-
-      var request = http.MultipartRequest(
-        'POST',
-        Uri.parse('http://localhost:8082/upload'),
-      );
-      request.files.add(await http.MultipartFile.fromPath('image', photo.path));
-
-      var response = await request.send();
-      if (response.statusCode == 200) {
-        final responseData = await response.stream.bytesToString();
-        final jsonData = jsonDecode(responseData);
-        final photoUrl = jsonData['url'];
-
-        setState(() {
-          _logs.add("✅ Photo uploaded: $photoUrl");
-        });
-        return photoUrl;
-      } else {
-        setState(() {
-          _logs.add("❌ Upload failed: ${response.statusCode}");
-        });
-        return null;
-      }
-    } catch (e) {
-      setState(() {
-        _logs.add("❌ Photo error: $e");
-      });
-      return null;
-    }
-    */
-  }
-
-  Future<void> _handlePickupWithPhoto() async {
-    final photoUrl = await _takePhotoAndUpload();
-    if (photoUrl != null) {
-      await _callAPI('pickup', photoUrl: photoUrl);
-    }
-  }
-
-  Future<void> _handleDeliveryWithPhoto() async {
-    final photoUrl = await _takePhotoAndUpload();
-    if (photoUrl != null) {
-      await _callAPI('deliver', photoUrl: photoUrl);
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Express Rider App'),
-        backgroundColor: Colors.teal,
-        foregroundColor: Colors.white,
-        actions: [
-          Switch(
-            value: _isOnline,
-            onChanged: (value) => _toggleOnline(),
-            activeColor: Colors.white,
+        // AppBar
+        appBarTheme: const AppBarTheme(
+          backgroundColor: AppColors.surface,
+          foregroundColor: AppColors.textPrimary,
+          elevation: 0,
+          centerTitle: false,
+          scrolledUnderElevation: 0,
+          systemOverlayStyle: SystemUiOverlayStyle(
+            statusBarBrightness: Brightness.light,
+            statusBarIconBrightness: Brightness.dark,
           ),
-          const SizedBox(width: 16),
-        ],
-      ),
-      body: Column(
-        children: [
-          // Status Bar
-          Container(
-            padding: const EdgeInsets.all(16),
-            color: _isOnline ? Colors.green.shade100 : Colors.grey.shade200,
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  _isOnline ? '🟢 Online' : '🔴 Offline',
-                  style: const TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                Text(
-                  'Status: ${_jobStatus.toUpperCase()}',
-                  style: const TextStyle(fontSize: 14),
-                ),
-              ],
+          titleTextStyle: TextStyle(
+            fontFamily: 'Inter',
+            fontWeight: FontWeight.w800,
+            fontSize: 20,
+            color: AppColors.textPrimary,
+          ),
+        ),
+        // Elevated Button
+        elevatedButtonTheme: ElevatedButtonThemeData(
+          style: ElevatedButton.styleFrom(
+            backgroundColor: AppColors.primary,
+            foregroundColor: Colors.white,
+            elevation: 0,
+            shadowColor: Colors.transparent,
+            padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 24),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(14),
+            ),
+            textStyle: const TextStyle(
+              fontFamily: 'Inter',
+              fontWeight: FontWeight.w700,
+              fontSize: 16,
             ),
           ),
-
-          // Active Job Card
-          if (_currentOrderId != null) _buildActiveJobCard(),
-
-          // Logs
-          Expanded(
-            child: Container(
-              color: Colors.grey.shade50,
-              child: ListView.builder(
-                reverse: true,
-                itemCount: _logs.length,
-                itemBuilder: (context, index) {
-                  final log = _logs[_logs.length - 1 - index];
-                  return ListTile(
-                    dense: true,
-                    title: Text(
-                      log,
-                      style: const TextStyle(
-                        fontSize: 12,
-                        fontFamily: 'monospace',
-                      ),
-                    ),
-                  );
-                },
-              ),
+        ),
+        // Text Button
+        textButtonTheme: TextButtonThemeData(
+          style: TextButton.styleFrom(
+            foregroundColor: AppColors.primary,
+            textStyle: const TextStyle(
+              fontFamily: 'Inter',
+              fontWeight: FontWeight.w700,
             ),
           ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildActiveJobCard() {
-    return Container(
-      margin: const EdgeInsets.all(16),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.1),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
+        ),
+        // Outlined Button
+        outlinedButtonTheme: OutlinedButtonThemeData(
+          style: OutlinedButton.styleFrom(
+            foregroundColor: AppColors.primary,
+            side: const BorderSide(color: AppColors.border),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(14),
+            ),
+            textStyle: const TextStyle(
+              fontFamily: 'Inter',
+              fontWeight: FontWeight.w700,
+            ),
           ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Active Job: $_currentOrderId',
-            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+        ),
+        // Input decoration
+        inputDecorationTheme: InputDecorationTheme(
+          filled: true,
+          fillColor: AppColors.background,
+          hintStyle: const TextStyle(color: AppColors.textMuted),
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 16,
+            vertical: 16,
           ),
-          const SizedBox(height: 16),
-
-          if (_jobStatus == 'matched')
-            _buildActionButton(
-              "Arrived at Pickup",
-              Icons.pin_drop,
-              Colors.blue,
-              'arrived-pickup',
-            ),
-
-          if (_jobStatus == 'arrived_pickup')
-            _buildPhotoButton(
-              "Confirm Pickup & Photo",
-              Icons.camera_alt,
-              Colors.purple,
-              _handlePickupWithPhoto,
-            ),
-
-          if (_jobStatus == 'picked_up')
-            _buildActionButton(
-              "Arrived at Dropoff",
-              Icons.flag,
-              Colors.blue,
-              'arrived-dropoff',
-            ),
-
-          if (_jobStatus == 'arrived_dropoff')
-            _buildPhotoButton(
-              "Confirm Delivery & Photo",
-              Icons.camera_alt,
-              Colors.green,
-              _handleDeliveryWithPhoto,
-            ),
-
-          if (_jobStatus == 'delivered')
-            Column(
-              children: [
-                const Text(
-                  "Collect Payment Handling",
-                  style: TextStyle(color: Colors.grey),
-                ),
-                const SizedBox(height: 10),
-                _buildActionButton(
-                  "Confirm Payment Received",
-                  Icons.attach_money,
-                  Colors.teal,
-                  'confirm-payment',
-                ),
-              ],
-            ),
-
-          if (_jobStatus == 'completed')
-            const Text(
-              "✅ Job Completed!",
-              style: TextStyle(
-                color: Colors.green,
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildActionButton(
-    String label,
-    IconData icon,
-    Color color,
-    String endpoint,
-  ) {
-    return SizedBox(
-      width: double.infinity,
-      child: ElevatedButton.icon(
-        onPressed: () => _callAPI(endpoint),
-        icon: Icon(icon),
-        label: Text(label),
-        style: ElevatedButton.styleFrom(
-          backgroundColor: color,
-          foregroundColor: Colors.white,
-          padding: const EdgeInsets.symmetric(vertical: 16),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(14),
+            borderSide: const BorderSide(color: AppColors.border),
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(14),
+            borderSide: const BorderSide(color: AppColors.border),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(14),
+            borderSide: const BorderSide(color: AppColors.primary, width: 2),
+          ),
+        ),
+        // Card
+        cardTheme: CardThemeData(
+          elevation: 0,
+          color: AppColors.surface,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+            side: const BorderSide(color: AppColors.border),
+          ),
+          shadowColor: Colors.transparent,
+          margin: EdgeInsets.zero,
+        ),
+        // Chip
+        chipTheme: const ChipThemeData(
+          backgroundColor: AppColors.primaryLight,
+          labelStyle: TextStyle(
+            color: AppColors.primary,
+            fontWeight: FontWeight.w700,
+            fontSize: 12,
+          ),
+          padding: EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+          side: BorderSide.none,
+        ),
+        // Divider
+        dividerTheme: const DividerThemeData(
+          color: AppColors.border,
+          thickness: 1,
+          space: 0,
+        ),
+        // Text theme
+        textTheme: const TextTheme(
+          displayLarge: TextStyle(
+            fontWeight: FontWeight.w900,
+            color: AppColors.textPrimary,
+          ),
+          headlineLarge: TextStyle(
+            fontWeight: FontWeight.w800,
+            color: AppColors.textPrimary,
+            fontSize: 28,
+          ),
+          headlineMedium: TextStyle(
+            fontWeight: FontWeight.w800,
+            color: AppColors.textPrimary,
+            fontSize: 24,
+          ),
+          titleLarge: TextStyle(
+            fontWeight: FontWeight.w700,
+            color: AppColors.textPrimary,
+            fontSize: 18,
+          ),
+          titleMedium: TextStyle(
+            fontWeight: FontWeight.w600,
+            color: AppColors.textPrimary,
+            fontSize: 16,
+          ),
+          titleSmall: TextStyle(
+            fontWeight: FontWeight.w600,
+            color: AppColors.textSecondary,
+            fontSize: 14,
+          ),
+          bodyLarge: TextStyle(
+            color: AppColors.textPrimary,
+            fontSize: 16,
+          ),
+          bodyMedium: TextStyle(
+            color: AppColors.textSecondary,
+            fontSize: 14,
+          ),
+          bodySmall: TextStyle(
+            color: AppColors.textMuted,
+            fontSize: 12,
+          ),
+          labelLarge: TextStyle(
+            fontWeight: FontWeight.w700,
+            color: AppColors.textPrimary,
+            fontSize: 14,
+          ),
         ),
       ),
+      home: const LoginScreen(),
     );
-  }
-
-  Widget _buildPhotoButton(
-    String label,
-    IconData icon,
-    Color color,
-    Future<void> Function() onPressed,
-  ) {
-    return SizedBox(
-      width: double.infinity,
-      child: ElevatedButton.icon(
-        onPressed: onPressed,
-        icon: Icon(icon),
-        label: Text(label),
-        style: ElevatedButton.styleFrom(
-          backgroundColor: color,
-          foregroundColor: Colors.white,
-          padding: const EdgeInsets.symmetric(vertical: 16),
-        ),
-      ),
-    );
-  }
-
-  void _startLocationSharing() {
-    _locationTimer?.cancel();
-    _locationTimer = Timer.periodic(const Duration(seconds: 3), (timer) {
-      if (_currentOrderId == null || !_isOnline) {
-        timer.cancel();
-        return;
-      }
-      // Mock Location Movement (Siam Paragon area)
-      final lat = 13.7462 + (timer.tick * 0.0001);
-      final lng = 100.5348 + (timer.tick * 0.0001);
-
-      final msg = jsonEncode({
-        "type": "LOCATION_UPDATE",
-        "order_id":
-            _currentOrderId, // Ensure this matches what receiver expects
-        "rider_id": "00000000-0000-0000-0000-000000000001",
-        "lat": lat,
-        "lng": lng,
-      });
-
-      _channel?.sink.add(msg);
-      // Log occasionally
-      if (timer.tick % 5 == 0) {
-        setState(() {
-          _logs.add("📡 Sent Location: $lat, $lng");
-        });
-      }
-    });
-
-    setState(() {
-      _logs.add("📡 Location Sharing Started");
-    });
-  }
-
-  void _stopLocationSharing() {
-    _locationTimer?.cancel();
-    _locationTimer = null;
-    setState(() {
-      _logs.add("🛑 Location Sharing Stopped");
-    });
   }
 }

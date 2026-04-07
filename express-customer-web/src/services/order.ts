@@ -59,6 +59,26 @@ export const orderService = {
         return response.json();
     },
 
+    confirmPayment: async (id: string) => {
+        const token = authService.getToken();
+        if (!token) throw new Error('Not authenticated');
+
+        const response = await fetch(`${API_URL}/orders/${id}/confirm-payment`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
+        });
+
+        if (!response.ok) {
+            const errorText = await response.text();
+            throw new Error(`Confirm Payment Failed: ${errorText}`);
+        }
+
+        return response.json();
+    },
+
     getAll: async () => {
         const token = authService.getToken();
         if (!token) throw new Error('Not authenticated');

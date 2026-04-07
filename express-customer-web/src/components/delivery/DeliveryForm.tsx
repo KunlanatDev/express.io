@@ -263,7 +263,7 @@ const DeliveryForm: React.FC<DeliveryFormProps> = ({
             กม.
           </Typography>
         </Stack>
-
+        
         <Divider />
 
         {/* Body */}
@@ -337,7 +337,7 @@ const DeliveryForm: React.FC<DeliveryFormProps> = ({
                   placeholder="ค้นหาจุดรับ..."
                 />
 
-                <Stack direction="row" spacing={2} sx={{ mt: 2 }}>
+                <Stack direction={{ xs: "column", sm: "row" }} spacing={2} sx={{ mt: 2 }}>
                   <TextField
                     fullWidth
                     value={senderName}
@@ -468,7 +468,7 @@ const DeliveryForm: React.FC<DeliveryFormProps> = ({
                       placeholder="ระบุจุดส่ง (เช่น อาคาร, ตึก, เลขที่บ้าน)"
                     />
 
-                    <Stack direction="row" spacing={2} sx={{ mt: 2 }}>
+                    <Stack direction={{ xs: "column", sm: "row" }} spacing={2} sx={{ mt: 2 }}>
                       <TextField
                         fullWidth
                         value={deliveryLocation.contactName || ""}

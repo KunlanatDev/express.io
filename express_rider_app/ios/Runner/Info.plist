@@ -51,5 +51,9 @@
 	<string>This app needs photo library access to select photos for proof of delivery</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>This app needs microphone access for video recording</string>
+	<key>GMSApiKey</key>
+	<string>AIzaSyCiq5YTTF5oCwsFSiHMmNBMvdN3zwYbaUw</string>
+	<key>io.flutter.embedded_views_preview</key>
+	<true/>
 </dict>
 </plist>

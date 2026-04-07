@@ -37,6 +37,7 @@ dependencies:
   web_socket_channel: ^3.0.3
   http: ^1.6.0
   image_picker: ^1.0.7
+  # google_maps_flutter removed — not supported on macOS desktop
 
 dev_dependencies:
   flutter_test:

@@ -18,6 +18,7 @@ import (
 type OrderService interface {
 	CreateOrder(ctx context.Context, req *model.CreateOrderRequest, customerID string) (*entity.DeliveryOrder, error)
 	GetOrder(ctx context.Context, id string) (*entity.DeliveryOrder, error)
+	GetAllOrders(ctx context.Context) ([]entity.DeliveryOrder, error)
 	AcceptOrder(ctx context.Context, orderID, riderID string) (*entity.DeliveryOrder, error)
 	CancelOrder(ctx context.Context, orderID, reason string) (*entity.DeliveryOrder, error)
 	ArrivedAtPickup(ctx context.Context, orderID string) (*entity.DeliveryOrder, error)
@@ -31,13 +32,15 @@ type OrderService interface {
 type orderService struct {
 	orderRepo      repo.OrderRepository
 	pricingService PricingService
+	dispatchSvc    DispatchService
 	redis          *redis.Client
 }
 
-func NewOrderService(orderRepo repo.OrderRepository, pricingService PricingService, redisClient *redis.Client) OrderService {
+func NewOrderService(orderRepo repo.OrderRepository, pricingService PricingService, dispatchSvc DispatchService, redisClient *redis.Client) OrderService {
 	return &orderService{
 		orderRepo:      orderRepo,
 		pricingService: pricingService,
+		dispatchSvc:    dispatchSvc,
 		redis:          redisClient,
 	}
 }
@@ -59,7 +62,7 @@ func (s *orderService) CreateOrder(ctx context.Context, req *model.CreateOrderRe
 		ID:                uuid.New(),
 		OrderNumber:       orderNumber,
 		CustomerID:        custUUID,
-		Status:            "pending",
+		Status:            "pending_payment",
 		ServiceType:       req.ServiceType,
 		CreatedAt:         time.Now(),
 		UpdatedAt:         time.Now(),
@@ -111,7 +114,7 @@ func (s *orderService) CreateOrder(ctx context.Context, req *model.CreateOrderRe
 		return nil, err
 	}
 
-	// 5. Notify Realtime Gateway (Fire & Forget)
+	// 5. Notify Realtime Gateway that order is created (Awaiting payment)
 	go func() {
 		event := map[string]interface{}{
 			"type": "ORDER_CREATED",
@@ -126,8 +129,6 @@ func (s *orderService) CreateOrder(ctx context.Context, req *model.CreateOrderRe
 		}
 	}()
 
-	// 6. Start Workflow (TODO: Temporal)
-
 	return order, nil
 }
 
@@ -138,6 +139,10 @@ func (s *orderService) GetOrder(ctx context.Context, id string) (*entity.Deliver
 		return nil, errors.New("invalid order id")
 	}
 	return s.orderRepo.GetOrder(ctx, orderID)
+}
+
+func (s *orderService) GetAllOrders(ctx context.Context) ([]entity.DeliveryOrder, error) {
+	return s.orderRepo.GetAll(ctx)
 }
 
 func (s *orderService) AcceptOrder(ctx context.Context, orderID, riderID string) (*entity.DeliveryOrder, error) {
@@ -324,7 +329,8 @@ func (s *orderService) ConfirmPayment(ctx context.Context, orderID string) (*ent
 		return nil, errors.New("invalid order id")
 	}
 
-	if err := s.orderRepo.UpdateStatus(ctx, oID, "completed"); err != nil {
+	// Update status to pending (ready for dispatch) instead of completed
+	if err := s.orderRepo.UpdateStatus(ctx, oID, "pending"); err != nil {
 		return nil, err
 	}
 	order, err := s.orderRepo.GetOrder(ctx, oID)
@@ -332,7 +338,15 @@ func (s *orderService) ConfirmPayment(ctx context.Context, orderID string) (*ent
 		return nil, err
 	}
 
-	s.publishEvent(ctx, "ORDER_COMPLETED", order)
+	s.publishEvent(ctx, "ORDER_PAYMENT_CONFIRMED", order)
+
+	// Trigger Smart Dispatch Engine AFTER payment is confirmed
+	go func() {
+		if err := s.dispatchSvc.DispatchOrder(context.Background(), order); err != nil {
+			log.Printf("[OrderService] Dispatch failed for Order %s after payment: %v", order.ID, err)
+		}
+	}()
+
 	return order, nil
 }
 

@@ -11,6 +11,7 @@ import MainLayout from "./components/layout/MainLayout";
 import CreateOrderPage from "./pages/CreateOrderPage";
 import PublicTrackingPage from "./pages/PublicTrackingPage"; // Need to create
 import OrdersPage from "./pages/OrdersPage"; // Need to create
+import HelpPage from "./pages/HelpPage";
 import { authService } from "./services/auth";
 import { orderService } from "./services/order";
 import type { OrderResponse } from "./types";
@@ -138,9 +139,8 @@ const LoginForm = ({
     setError("");
     setLoading(true);
     try {
-      // const res = await authService.login({ email, password });
-      // onSuccess(res.access_token);
-      onSuccess("success");
+      const res = await authService.login({ email, password });
+      onSuccess(res.access_token);
       onClose();
     } catch (e: any) {
       setError(e.message || "Authentication failed");
@@ -358,10 +358,11 @@ const RegisterForm = ({
         password,
         first_name: firstName,
         last_name: lastName,
-        phone: "0000000000",
+        phone: phoneNumber || "0000000000",
       });
 
-      onSuccess("success");
+      const res = await authService.login({ email, password });
+      onSuccess(res.access_token);
       onClose();
     } catch (e: any) {
       setError(e.message || "Authentication failed");
@@ -817,6 +818,7 @@ function App() {
             />
             <Route path="/tracking" element={<PublicTrackingPage />} />
             <Route path="/orders" element={<OrdersPage />} />
+            <Route path="/help" element={<HelpPage />} />
             <Route path="*" element={<Navigate to="/" />} />
           </Routes>
         </MainLayout>
@@ -826,6 +828,7 @@ function App() {
           onClose={() => setShowAuth(false)}
           onSuccess={(t) => {
             setToken(t);
+            localStorage.setItem("token", t); // Needed for authService.getToken()
             setShowAuth(false);
           }}
         />
